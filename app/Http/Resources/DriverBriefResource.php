@@ -14,7 +14,7 @@ class DriverBriefResource extends JsonResource
             'user' => new UserBriefResource($this->whenLoaded('user')),
             'averageRating' => (float) $this->average_rating,
             'totalRides' => $this->total_rides,
-            'vehicle' => new VehicleBriefResource($this->whenLoaded('vehicles')->first()),
+            'vehicle' => $this->whenLoaded('vehicles', fn() => new VehicleBriefResource($this->vehicles->first())),
         ];
     }
 }

@@ -22,8 +22,10 @@ class PaymentResource extends JsonResource
             'transactionId' => $this->transaction_id,
             'paidAt' => $this->paid_at?->toISOString(),
             'refundedAt' => $this->refunded_at?->toISOString(),
-            'rider' => new UserBriefResource($this->whenLoaded('ride.rider')),
-            'driver' => new UserBriefResource($this->whenLoaded('ride.driver')),
+            'rider' => $this->relationLoaded('ride') && $this->ride && $this->ride->relationLoaded('rider')
+                ? new UserBriefResource($this->ride->rider) : null,
+            'driver' => $this->relationLoaded('ride') && $this->ride && $this->ride->relationLoaded('driver') && $this->ride->driver && $this->ride->driver->relationLoaded('user')
+                ? new UserBriefResource($this->ride->driver->user) : null,
             'appliedCommissionRate' => $this->applied_commission_rate ? (float) $this->applied_commission_rate : null,
             'companyCommission' => (float) $this->company_commission,
         ];

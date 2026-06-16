@@ -31,12 +31,17 @@ class PaymentService
     {
         $ride->refresh();
 
+        // Prevent duplicate payments
+        if ($ride->payment) {
+            return $ride->payment;
+        }
+
         $commissionRate = $this->fareCalc->getCommissionRate($ride->driver_pickup_distance_km);
         $waitingFee = $ride->waiting_started_at
             ? $this->fareCalc->calculateWaitingFee(now()->diffInMinutes($ride->waiting_started_at))
             : 0;
 
-        $actualFare = $ride->actual_fare ?? $ride->estimated_fare;
+        $actualFare = $ride->actual_fare ?? $ride->estimated_fare ?? 0;
         $totalFare = round($actualFare + $waitingFee, 2);
         $commission = round($totalFare * $commissionRate, 2);
         $driverAmount = round($totalFare - $commission, 2);
@@ -56,19 +61,47 @@ class PaymentService
         ]);
 
         if ($ride->payment_method === 'wallet') {
-            $this->walletRepo->deductBalance($ride->rider_id, $totalFare);
+            $riderWallet = $this->walletRepo->findByUser($ride->rider_id);
+            $riderBalanceBefore = $riderWallet ? (float) $riderWallet->balance : 0;
 
-            $this->walletRepo->addBalance($ride->driver->user_id, $driverAmount);
+            $deducted = $this->walletRepo->deductBalance($ride->rider_id, $totalFare);
+            if (!$deducted) {
+                $payment->update(['status' => PaymentStatus::Failed]);
+                throw new \RuntimeException('Insufficient wallet balance');
+            }
+
+            $riderWalletAfter = $this->walletRepo->findByUser($ride->rider_id);
+            $riderBalanceAfter = $riderWalletAfter ? (float) $riderWalletAfter->balance : 0;
+
+            $driverWallet = $this->walletRepo->findByUser($ride->driver?->user_id);
+            if (!$driverWallet) {
+                $this->walletRepo->createForUser($ride->driver?->user_id);
+            }
+            $driverBalanceBefore = $driverWallet ? (float) $driverWallet->balance : 0;
+            $this->walletRepo->addBalance($ride->driver?->user_id, $driverAmount);
+            $driverWalletAfter = $this->walletRepo->findByUser($ride->driver?->user_id);
+            $driverBalanceAfter = $driverWalletAfter ? (float) $driverWalletAfter->balance : 0;
 
             LedgerEntry::create([
                 'user_id' => $ride->rider_id,
                 'type' => 'debit',
                 'amount' => $totalFare,
-                'balance_before' => 0,
-                'balance_after' => 0,
+                'balance_before' => $riderBalanceBefore,
+                'balance_after' => $riderBalanceAfter,
                 'reference_type' => Ride::class,
                 'reference_id' => $ride->id,
                 'description' => "Ride payment #{$ride->id}",
+            ]);
+
+            LedgerEntry::create([
+                'user_id' => $ride->driver?->user_id,
+                'type' => 'credit',
+                'amount' => $driverAmount,
+                'balance_before' => $driverBalanceBefore,
+                'balance_after' => $driverBalanceAfter,
+                'reference_type' => Payment::class,
+                'reference_id' => $payment->id,
+                'description' => "Driver earnings for ride #{$ride->id}",
             ]);
         } else {
             LedgerEntry::create([
@@ -90,23 +123,27 @@ class PaymentService
             'amount' => $commission,
         ]);
 
-        Notification::create([
-            'type' => 'commission_debt',
-            'notifiable_type' => \App\Models\User::class,
-            'notifiable_id' => $ride->driver->user_id,
-            'data' => ['ride_id' => $ride->id, 'amount' => $commission, 'message' => 'Commission debt recorded.'],
-        ]);
+        if ($ride->driver) {
+            Notification::create([
+                'type' => 'commission_debt',
+                'notifiable_type' => \App\Models\User::class,
+                'notifiable_id' => $ride->driver->user_id,
+                'data' => ['ride_id' => $ride->id, 'amount' => $commission, 'message' => 'Commission debt recorded.'],
+            ]);
+        }
 
-        LedgerEntry::create([
-            'user_id' => $ride->driver->user_id,
-            'type' => 'commission_debt',
-            'amount' => $commission,
-            'balance_before' => 0,
-            'balance_after' => 0,
-            'reference_type' => Payment::class,
-            'reference_id' => $payment->id,
-            'description' => "Commission debt for ride #{$ride->id}",
-        ]);
+        if ($ride->driver) {
+            LedgerEntry::create([
+                'user_id' => $ride->driver->user_id,
+                'type' => 'commission_debt',
+                'amount' => $commission,
+                'balance_before' => 0,
+                'balance_after' => 0,
+                'reference_type' => Payment::class,
+                'reference_id' => $payment->id,
+                'description' => "Commission debt for ride #{$ride->id}",
+            ]);
+        }
 
         $ride->update([
             'actual_fare' => $totalFare,

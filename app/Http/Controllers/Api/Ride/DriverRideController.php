@@ -23,7 +23,20 @@ class DriverRideController extends Controller
 
     public function pending(Request $request): JsonResponse
     {
-        $rides = $this->rideRepo->findPendingRides();
+        $driver = $this->driverRepo->findByUserId($request->user()->id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $offerRideIds = \App\Models\RideDriverOffer::where('driver_id', $driver->id)
+            ->where('status', 'pending')
+            ->pluck('ride_id');
+
+        $rides = \App\Models\Ride::with('rider', 'vehicleType')
+            ->whereIn('id', $offerRideIds)
+            ->where('status', \App\Enums\RideStatus::SearchingDriver)
+            ->latest()
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -43,14 +56,29 @@ class DriverRideController extends Controller
             return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
         }
 
+        if ($ride->status !== \App\Enums\RideStatus::SearchingDriver) {
+            return response()->json(['success' => false, 'message' => 'Ride is no longer available'], 409);
+        }
+
+        $offer = \App\Models\RideDriverOffer::where('ride_id', $ride->id)
+            ->where('driver_id', $driver->id)
+            ->where('status', 'pending')
+            ->first();
+
+        if (!$offer) {
+            return response()->json(['success' => false, 'message' => 'No pending offer for this ride'], 403);
+        }
+
         $ride->update([
             'driver_id' => $driver->id,
             'status' => \App\Enums\RideStatus::DriverAssigned,
         ]);
 
+        $offer->update(['status' => 'accepted']);
+
         \App\Models\RideDriverOffer::where('ride_id', $ride->id)
-            ->where('driver_id', $driver->id)
-            ->update(['status' => 'accepted']);
+            ->where('driver_id', '!=', $driver->id)
+            ->update(['status' => 'rejected']);
 
         \App\Models\RideStatusHistory::create([
             'ride_id' => $ride->id,
@@ -58,7 +86,6 @@ class DriverRideController extends Controller
             'created_at' => now(),
         ]);
 
-        // Notify rider
         Notification::create([
             'type' => 'ride_accepted',
             'notifiable_type' => \App\Models\User::class,
@@ -69,18 +96,27 @@ class DriverRideController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Ride accepted',
-            'data' => new RideResource($ride->fresh()->load('rider', 'vehicleType', 'pickup', 'destination')),
+            'data' => new RideResource($ride->fresh()->load('rider', 'vehicleType', 'driver.user', 'vehicle')),
         ]);
     }
 
     public function reject(int $rideId, Request $request): JsonResponse
     {
         $driver = $this->driverRepo->findByUserId($request->user()->id);
-        if ($driver) {
-            \App\Models\RideDriverOffer::where('ride_id', $rideId)
-                ->where('driver_id', $driver->id)
-                ->update(['status' => 'rejected']);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
         }
+
+        $offer = \App\Models\RideDriverOffer::where('ride_id', $rideId)
+            ->where('driver_id', $driver->id)
+            ->where('status', 'pending')
+            ->first();
+
+        if (!$offer) {
+            return response()->json(['success' => false, 'message' => 'No pending offer for this ride'], 404);
+        }
+
+        $offer->update(['status' => 'rejected']);
 
         return response()->json([
             'success' => true,
@@ -91,14 +127,20 @@ class DriverRideController extends Controller
     public function arrived(int $rideId, Request $request): JsonResponse
     {
         try {
-            $ride = $this->rideService->driverArrived($rideId);
+            $driver = $this->driverRepo->findByUserId($request->user()->id);
+            if (!$driver) {
+                return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+            }
 
-            Notification::create([
-                'type' => 'driver_arrived',
-                'notifiable_type' => \App\Models\User::class,
-                'notifiable_id' => $ride->rider_id,
-                'data' => ['ride_id' => $ride->id, 'message' => 'Your driver has arrived.'],
-            ]);
+            $ride = $this->rideRepo->findById($rideId);
+            if (!$ride) {
+                return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
+            }
+            if ($ride->driver_id !== $driver->id) {
+                return response()->json(['success' => false, 'message' => 'This ride is not assigned to you'], 403);
+            }
+
+            $ride = $this->rideService->driverArrived($rideId);
 
             return response()->json([
                 'success' => true,
@@ -112,14 +154,20 @@ class DriverRideController extends Controller
     public function start(int $rideId, Request $request): JsonResponse
     {
         try {
-            $ride = $this->rideService->startRide($rideId);
+            $driver = $this->driverRepo->findByUserId($request->user()->id);
+            if (!$driver) {
+                return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+            }
 
-            Notification::create([
-                'type' => 'ride_started',
-                'notifiable_type' => \App\Models\User::class,
-                'notifiable_id' => $ride->rider_id,
-                'data' => ['ride_id' => $ride->id, 'message' => 'Your ride has started.'],
-            ]);
+            $ride = $this->rideRepo->findById($rideId);
+            if (!$ride) {
+                return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
+            }
+            if ($ride->driver_id !== $driver->id) {
+                return response()->json(['success' => false, 'message' => 'This ride is not assigned to you'], 403);
+            }
+
+            $ride = $this->rideService->startRide($rideId);
 
             return response()->json([
                 'success' => true,
@@ -138,6 +186,19 @@ class DriverRideController extends Controller
         ]);
 
         try {
+            $driver = $this->driverRepo->findByUserId($request->user()->id);
+            if (!$driver) {
+                return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+            }
+
+            $ride = $this->rideRepo->findById($rideId);
+            if (!$ride) {
+                return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
+            }
+            if ($ride->driver_id !== $driver->id) {
+                return response()->json(['success' => false, 'message' => 'This ride is not assigned to you'], 403);
+            }
+
             $ride = $this->rideService->completeRide(
                 $rideId,
                 $request->input('actual_distance'),
@@ -146,34 +207,28 @@ class DriverRideController extends Controller
 
             $ride->refresh();
 
-            Notification::create([
-                'type' => 'ride_completed',
-                'notifiable_type' => \App\Models\User::class,
-                'notifiable_id' => $ride->rider_id,
-                'data' => ['ride_id' => $ride->id, 'message' => 'Your ride has been completed.'],
-            ]);
-
-            Notification::create([
-                'type' => 'ride_completed',
-                'notifiable_type' => \App\Models\User::class,
-                'notifiable_id' => $ride->driver?->user_id,
-                'data' => ['ride_id' => $ride->id, 'message' => 'Ride completed.'],
-            ]);
-
             return response()->json([
                 'success' => true,
-                'data' => new RideResource($ride),
+                'data' => new RideResource($ride->load('driver.user', 'vehicleType', 'vehicle', 'payment')),
             ]);
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
         }
     }
 
-    public function summary(int $rideId): JsonResponse
+    public function summary(int $rideId, Request $request): JsonResponse
     {
+        $driver = $this->driverRepo->findByUserId($request->user()->id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
         $ride = $this->rideRepo->findById($rideId);
         if (!$ride) {
             return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
+        }
+        if ($ride->driver_id !== $driver->id) {
+            return response()->json(['success' => false, 'message' => 'This ride is not assigned to you'], 403);
         }
 
         return response()->json([

@@ -44,7 +44,7 @@ class CoreDataSeeder extends Seeder
             ['key' => 'price_per_minute', 'value' => '1.5', 'group' => 'pricing', 'type' => 'decimal', 'description' => 'Price per minute'],
             ['key' => 'minimum_fare', 'value' => '15', 'group' => 'pricing', 'type' => 'decimal', 'description' => 'Minimum fare amount'],
             ['key' => 'waiting_fee_per_minute', 'value' => '1', 'group' => 'pricing', 'type' => 'decimal', 'description' => 'Waiting fee per minute after free wait time'],
-            ['key' => 'company_commission_rate', 'value' => '0.10', 'group' => 'commission', 'type' => 'decimal', 'description' => 'Company commission rate (10%)'],
+            ['key' => 'company_commission_rate', 'value' => '10', 'group' => 'commission', 'type' => 'decimal', 'description' => 'Company commission rate (10%)'],
             ['key' => 'long_pickup_threshold_km', 'value' => '5', 'group' => 'commission', 'type' => 'decimal', 'description' => 'Distance threshold for long pickup commission adjustment'],
             ['key' => 'long_pickup_commission_rate', 'value' => '0.08', 'group' => 'commission', 'type' => 'decimal', 'description' => 'Reduced commission rate for long pickups'],
             ['key' => 'gasoline_92_price_per_liter', 'value' => '12.5', 'group' => 'fuel', 'type' => 'decimal', 'description' => 'Gasoline 92 price per liter in EGP'],

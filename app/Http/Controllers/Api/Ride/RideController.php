@@ -44,6 +44,20 @@ class RideController extends Controller
         $rider = Rider::where('user_id', $request->user()->id)->firstOrFail();
         $dto = CreateRideDTO::fromRequest($request->validated(), $request->user()->id);
 
+        $vehicleType = $this->vehicleTypeRepo->findById($dto->vehicleTypeId);
+        if (!$vehicleType) {
+            return response()->json(['success' => false, 'message' => 'Vehicle type not found'], 422);
+        }
+
+        $distance = $this->calculateDistance(
+            $dto->pickupLatitude,
+            $dto->pickupLongitude,
+            $dto->destinationLatitude,
+            $dto->destinationLongitude
+        );
+        $duration = (int) ($distance / 40 * 60);
+        $fare = $this->fareCalc->calculateEstimatedFare($vehicleType, $distance, $duration);
+
         $ride = Ride::create([
             'booking_id' => 'RIDE-' . str_pad((string) (Ride::max('id') + 1), 6, '0', STR_PAD_LEFT),
             'rider_id' => $request->user()->id,
@@ -57,6 +71,9 @@ class RideController extends Controller
             'payment_method' => $dto->paymentMethod ?? 'wallet',
             'status' => \App\Enums\RideStatus::SearchingDriver,
             'female_driver_preferred' => $dto->femaleDriverPreferred,
+            'estimated_fare' => $fare['total_fare'],
+            'estimated_distance' => $distance,
+            'estimated_duration' => $duration,
         ]);
 
         \App\Models\RideStatusHistory::create([
@@ -90,12 +107,16 @@ class RideController extends Controller
         ], 201);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(int $id, Request $request): JsonResponse
     {
         $ride = $this->rideRepo->findById($id);
 
         if (!$ride) {
             return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
+        }
+
+        if ($ride->rider_id !== $request->user()->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         return response()->json([
@@ -157,6 +178,14 @@ class RideController extends Controller
     public function cancel(int $id, CancelRideRequest $request): JsonResponse
     {
         try {
+            $ride = $this->rideRepo->findById($id);
+            if (!$ride) {
+                return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
+            }
+            if ($ride->rider_id !== $request->user()->id) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            }
+
             $ride = $this->rideService->cancelRide(
                 $id,
                 $request->input('cancellation_reason'),
