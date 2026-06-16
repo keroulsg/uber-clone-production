@@ -24,7 +24,7 @@ class DriverResource extends JsonResource
             'currentBalance' => (float) $this->current_balance,
             'acceptanceRate' => (float) $this->acceptance_rate,
             'completionRate' => (float) $this->completion_rate,
-            'vehicle' => new VehicleResource($this->whenLoaded('vehicles')),
+            'vehicle' => $this->whenLoaded('vehicles', fn() => new VehicleResource($this->vehicles->first())),
             'profilePhotoUrl' => $this->profile_photo_url,
             'licenseFrontImage' => $this->license_front_image,
             'licenseBackImage' => $this->license_back_image,
