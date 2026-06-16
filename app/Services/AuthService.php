@@ -12,6 +12,7 @@ use App\Enums\DriverStatus;
 use App\Repositories\UserRepository;
 use App\Repositories\WalletRepository;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 class AuthService
 {
     public function __construct(
@@ -27,8 +28,10 @@ class AuthService
             'phone' => $dto->phone,
             'password' => Hash::make($dto->password),
             'gender' => $dto->gender,
-            'roles' => [$dto->role],
         ]);
+
+        $role = Role::findOrCreate($dto->role);
+        $user->roles()->attach($role->id);
 
         if ($dto->role === 'rider') {
             Rider::create(['user_id' => $user->id]);

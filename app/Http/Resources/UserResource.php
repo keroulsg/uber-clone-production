@@ -17,7 +17,7 @@ class UserResource extends JsonResource
             'gender' => $this->gender,
             'avatarUrl' => $this->avatar_url,
             'isActive' => $this->is_active,
-            'roles' => $this->roles ?? [],
+            'roles' => $this->getRoleNames(),
             'emailVerifiedAt' => $this->email_verified_at?->toISOString(),
             'phoneVerifiedAt' => $this->phone_verified_at?->toISOString(),
             'createdAt' => $this->created_at?->toISOString(),
