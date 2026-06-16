@@ -13,7 +13,7 @@ class VehicleTypeFactory extends Factory
     {
         return [
             'name' => fake()->randomElement(['Economy', 'Comfort', 'Premium']),
-            'slug' => fake()->unique()->randomElement(['economy', 'comfort', 'premium']),
+            'slug' => fake()->unique()->slug(),
             'base_fare' => fake()->randomFloat(2, 3, 10),
             'per_km_rate' => fake()->randomFloat(2, 1, 3),
             'per_minute_rate' => fake()->randomFloat(2, 0.1, 0.5),
