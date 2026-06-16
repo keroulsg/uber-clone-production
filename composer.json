@@ -12,6 +12,7 @@
         "intervention/image-laravel": "^4.0",
         "laravel/framework": "^13.8",
         "laravel/horizon": "^5.47",
+        "laravel/sanctum": "^4.3",
         "laravel/socialite": "^5.27",
         "laravel/telescope": "^5.20",
         "laravel/tinker": "^3.0",
