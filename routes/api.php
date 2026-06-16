@@ -22,6 +22,8 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])->name('login')->middleware('throttle:10,1');
     Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:3,1');
     Route::post('auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
+    Route::post('auth/send-otp', [AuthController::class, 'sendOtp']);
+    Route::post('auth/verify-otp', [AuthController::class, 'verifyOtp']);
 
     // Vehicle types (public)
     Route::get('vehicle-types', [VehicleController::class, 'types']);
@@ -45,8 +47,6 @@ Route::prefix('v1')->group(function () {
         // Auth
         Route::prefix('auth')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
-            Route::post('send-otp', [AuthController::class, 'sendOtp']);
-            Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
             Route::get('user', [AuthController::class, 'user']);
             Route::post('profile', [AuthController::class, 'updateProfile']);
             Route::post('change-password', [AuthController::class, 'changePassword']);
@@ -165,7 +165,7 @@ Route::prefix('v1')->group(function () {
             Route::get('users/{id}/ban-history', [AdminController::class, 'banHistory']);
 
             // Live drivers
-            Route::get('live-drivers', [AdminDriverController::class, 'liveDrivers']);
+            Route::get('live-drivers', [AdminController::class, 'liveDrivers']);
             Route::get('surge-data', [AdminController::class, 'surgeData']);
 
             // Drivers
