@@ -1,15 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/common/PageHeader'
-import { Card as CardUI } from '@/components/ui/card'
-import { apiClient } from '@/api/client'
 import { formatCurrency } from '@/lib/utils'
+import { useVehicleTypes } from '@/hooks/useVehicles'
+import { useEstimateFare } from '@/hooks/useRides'
 import { Calculator, Fuel, TrendingUp, DollarSign, UserCheck } from 'lucide-react'
-import type { ApiResponse } from '@/types'
 
 interface FareResult {
   base_fare: number
@@ -33,21 +32,15 @@ export default function AdminPricingCalculatorPage() {
   const [gasPrice, setGasPrice] = useState(15)
   const [fuelConsumption, setFuelConsumption] = useState(8.5)
   const [surgeMultiplier, setSurgeMultiplier] = useState(1.0)
-  const [vehicleTypes, setVehicleTypes] = useState<Array<{id: number, name: string}>>([])
   const [result, setResult] = useState<FareResult | null>(null)
-  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    apiClient.get('/vehicle-types').then((r: any) => {
-      if (r.data?.data) setVehicleTypes(r.data.data)
-      else if (Array.isArray(r.data)) setVehicleTypes(r.data)
-    }).catch(() => {})
-  }, [])
+  const { data: vehicleTypesData } = useVehicleTypes()
+  const vehicleTypes = (Array.isArray(vehicleTypesData) ? vehicleTypesData : vehicleTypesData?.data ?? []) as Array<{id: number, name: string, is_active?: boolean}>
+  const estimateFare = useEstimateFare()
 
-  const calculate = async () => {
-    setLoading(true)
-    try {
-      const res = await apiClient.post('/rides/estimate-fare', {
+  const calculate = () => {
+    estimateFare.mutate(
+      {
         pickup_latitude: 30.05,
         pickup_longitude: 31.24,
         destination_latitude: 30.05 + distanceKm * 0.009,
@@ -55,15 +48,12 @@ export default function AdminPricingCalculatorPage() {
         vehicle_type_id: parseInt(vehicleTypeId),
         distance: distanceKm,
         duration: durationMin,
-      })
-      const data = (res.data as any)?.data ?? res.data
-      setResult(data as FareResult)
-    } catch (e) {
-      console.error('Calculation error', e)
-      setResult(null)
-    } finally {
-      setLoading(false)
-    }
+      },
+      {
+        onSuccess: (res: any) => setResult((res?.data ?? res) as FareResult),
+        onError: () => setResult(null),
+      },
+    )
   }
 
   const netEarning = result ? (result.driver_amount - result.fuel_cost) : 0
@@ -114,8 +104,8 @@ export default function AdminPricingCalculatorPage() {
               </div>
             </div>
 
-            <Button onClick={calculate} disabled={loading} className="w-full">
-              {loading ? 'Calculating...' : 'Calculate Fare'}
+            <Button onClick={calculate} disabled={estimateFare.isPending} className="w-full">
+              {estimateFare.isPending ? 'Calculating...' : 'Calculate Fare'}
             </Button>
           </CardContent>
         </Card>

@@ -103,7 +103,20 @@ export default function AdminPaymentsPage() {
   ]
 
   const handleExport = () => {
-    toast.success('Payments exported successfully')
+    const headers = ['Transaction ID', 'Rider', 'Driver', 'Amount', 'Fee', 'Method', 'Status', 'Date']
+    const rows = payments.map((p: Payment) => [
+      p.transactionId ?? p.id,
+      (p as any).rider?.name ?? '',
+      (p as any).driver?.name ?? '',
+      p.amount, p.platformFee, p.paymentMethod ?? '', p.status, p.paidAt ?? '',
+    ])
+    const csv = [headers.join(','), ...rows.map((r: any[]) => r.map((c: any) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Payments exported')
   }
 
   if (isLoading) return <LoadingScreen message="Loading payments..." />

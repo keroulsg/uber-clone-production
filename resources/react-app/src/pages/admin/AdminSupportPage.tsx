@@ -211,17 +211,7 @@ export default function AdminSupportPage() {
 
           {selectedTicket && selectedTicket.status !== 'closed' && selectedTicket.status !== 'resolved' && (
             <div className="border-t pt-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Select defaultValue="">
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Assign to..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    <SelectItem value="admin1">Admin 1</SelectItem>
-                    <SelectItem value="admin2">Admin 2</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleCloseTicket}>
                   Close Ticket
                 </Button>
