@@ -5,9 +5,11 @@ import * as ridesApi from '../api/rides'
 import type { Ride } from '../types'
 
 export function useRides(params?: Record<string, unknown>) {
+  const token = useAuthStore((s) => s.token)
   return useQuery({
     queryKey: ['rides', params],
     queryFn: () => ridesApi.getRides(params),
+    enabled: !!token,
   })
 }
 

@@ -3,9 +3,11 @@ import { useAuthStore } from '../stores/authStore'
 import * as vehiclesApi from '../api/vehicles'
 
 export function useVehicleTypes() {
+  const token = useAuthStore((s) => s.token)
   return useQuery({
     queryKey: ['vehicle-types'],
     queryFn: () => vehiclesApi.getVehicleTypes(),
+    enabled: !!token,
     staleTime: 1000 * 60 * 30,
   })
 }

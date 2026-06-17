@@ -111,21 +111,14 @@ export default function App() {
   const _hasHydrated = useAuthStore((s) => s._hasHydrated)
   const { isLoading, isError } = useUser()
 
-  // Clear invalid token on failed auth fetch
-  useEffect(() => {
-    if (isError && token) {
-      useAuthStore.getState().logout()
-    }
-  }, [isError, token])
-
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
 
   // Wait for zustand persist hydration before any route rendering
   if (!_hasHydrated) return <LoadingScreen />
-  // Show loading while initial auth is being resolved (also during stale token cleanup)
-  if (token && (isLoading || isError)) return <LoadingScreen />
+  // Show loading while initial auth is being resolved
+  if (token && isLoading) return <LoadingScreen />
 
 
   return (

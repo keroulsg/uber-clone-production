@@ -56,6 +56,7 @@ export interface DriverBrief {
   averageRating: number
   totalRides: number
   gender?: string
+  profilePhotoUrl?: string
   vehicle?: VehicleBrief
 }
 
@@ -125,6 +126,7 @@ export interface VehicleBrief {
   color: string
   licensePlate: string
   imageUrl?: string
+  vehicleType?: VehicleType
 }
 
 export interface Vehicle {

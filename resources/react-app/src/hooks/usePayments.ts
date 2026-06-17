@@ -1,11 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '../stores/authStore'
 import * as paymentsApi from '../api/payments'
 import type { Transaction } from '../types'
 
 export function usePayments(params?: Record<string, unknown>) {
+  const token = useAuthStore((s) => s.token)
   return useQuery({
     queryKey: ['payments', params],
     queryFn: () => paymentsApi.getPayments(params),
+    enabled: !!token,
   })
 }
 
@@ -18,9 +21,11 @@ export function usePayment(id: string) {
 }
 
 export function useWallet() {
+  const token = useAuthStore((s) => s.token)
   return useQuery({
     queryKey: ['wallet'],
     queryFn: () => paymentsApi.getWallet(),
+    enabled: !!token,
   })
 }
 
@@ -36,8 +41,10 @@ export function useAddFunds() {
 }
 
 export function useTransactions(params?: Record<string, unknown>) {
+  const token = useAuthStore((s) => s.token)
   return useQuery({
     queryKey: ['wallet', 'transactions', params],
     queryFn: () => paymentsApi.getTransactions(params),
+    enabled: !!token,
   })
 }

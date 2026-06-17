@@ -146,42 +146,51 @@ class RideService
     public function completeRide(int $rideId, float $actualDistanceKm, int $actualDurationMin): Ride
     {
         $ride = $this->rideRepo->findById($rideId);
-        if (!$ride || $ride->status !== RideStatus::RideStarted) {
-            throw new \RuntimeException('Invalid state transition');
+        if (!$ride) {
+            throw new \RuntimeException('Ride not found');
         }
 
-        $ride->update([
-            'status' => RideStatus::RideCompleted,
-            'actual_distance' => $actualDistanceKm,
-            'actual_duration' => $actualDurationMin,
-            'completed_at' => now(),
-        ]);
+        $ride = \Illuminate\Support\Facades\DB::transaction(function () use ($ride, $actualDistanceKm, $actualDurationMin) {
+            $lockedRide = \App\Models\Ride::where('id', $ride->id)->lockForUpdate()->first();
+            if (!$lockedRide || $lockedRide->status !== RideStatus::RideStarted) {
+                throw new \RuntimeException('Invalid state transition');
+            }
 
-        RideStatusHistory::create([
-            'ride_id' => $ride->id,
-            'status' => RideStatus::RideCompleted->value,
-            'created_at' => now(),
-        ]);
+            $lockedRide->update([
+                'status' => RideStatus::RideCompleted,
+                'actual_distance' => $actualDistanceKm,
+                'actual_duration' => $actualDurationMin,
+                'completed_at' => now(),
+            ]);
 
-        $this->paymentService->processPayment($ride, $actualDistanceKm, $actualDurationMin);
+            RideStatusHistory::create([
+                'ride_id' => $lockedRide->id,
+                'status' => RideStatus::RideCompleted->value,
+                'created_at' => now(),
+            ]);
 
-        Notification::create([
-            'type' => 'ride_completed',
-            'notifiable_type' => \App\Models\User::class,
-            'notifiable_id' => $ride->rider_id,
-            'data' => ['ride_id' => $ride->id, 'message' => 'Your ride has been completed.'],
-        ]);
+            $this->paymentService->processPayment($lockedRide, $actualDistanceKm, $actualDurationMin);
 
-        if ($ride->driver) {
             Notification::create([
                 'type' => 'ride_completed',
                 'notifiable_type' => \App\Models\User::class,
-                'notifiable_id' => $ride->driver->user_id,
-                'data' => ['ride_id' => $ride->id, 'message' => 'Ride completed.'],
+                'notifiable_id' => $lockedRide->rider_id,
+                'data' => ['ride_id' => $lockedRide->id, 'message' => 'Your ride has been completed.'],
             ]);
-        }
 
-        return $ride->fresh();
+            if ($lockedRide->driver) {
+                Notification::create([
+                    'type' => 'ride_completed',
+                    'notifiable_type' => \App\Models\User::class,
+                    'notifiable_id' => $lockedRide->driver->user_id,
+                    'data' => ['ride_id' => $lockedRide->id, 'message' => 'Ride completed.'],
+                ]);
+            }
+
+            return $lockedRide->fresh();
+        });
+
+        return $ride;
     }
 
     public function cancelRide(int $rideId, ?string $reason = null, ?string $cancelledBy = null): Ride

@@ -17,6 +17,7 @@ class VehicleBriefResource extends JsonResource
             'color' => $this->color,
             'licensePlate' => $this->license_plate,
             'imageUrl' => $this->image_url,
+            'vehicleType' => new VehicleTypeResource($this->whenLoaded('vehicleType')),
         ];
     }
 }
