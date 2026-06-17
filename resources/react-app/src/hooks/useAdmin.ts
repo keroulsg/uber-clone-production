@@ -3,24 +3,32 @@ import { useAuthStore } from '../stores/authStore'
 import * as adminApi from '../api/admin'
 import type { ApiResponse, PaginatedResponse, Ticket } from '../types'
 
+function useAdminToken() {
+  return useAuthStore((s) => s.token)
+}
+
 export function useDashboard() {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'dashboard'],
     queryFn: () => adminApi.getDashboard(),
+    enabled: !!token,
     retry: 1,
   })
 }
 
 export function useCharts(period?: string) {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'charts', period],
     queryFn: () => adminApi.getCharts(period),
+    enabled: !!token,
     retry: 1,
   })
 }
 
 export function useActivities() {
-  const token = useAuthStore((s) => s.token)
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'activities'],
     queryFn: () => adminApi.getActivities(),
@@ -30,30 +38,38 @@ export function useActivities() {
 }
 
 export function useAdminUsers(params?: Record<string, unknown>) {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'users', params],
     queryFn: () => adminApi.getUsers(params),
+    enabled: !!token,
   })
 }
 
 export function useAdminDrivers(params?: Record<string, unknown>) {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'drivers', params],
     queryFn: () => adminApi.getDrivers(params),
+    enabled: !!token,
   })
 }
 
 export function useAdminRides(params?: Record<string, unknown>) {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'rides', params],
     queryFn: () => adminApi.getAllRides(params),
+    enabled: !!token,
   })
 }
 
 export function useAdminPayments(params?: Record<string, unknown>) {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'payments', params],
     queryFn: () => adminApi.getPayments(params),
+    enabled: !!token,
   })
 }
 
@@ -90,9 +106,11 @@ export function useReactivateDriver() {
 }
 
 export function useAdminSettings() {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'settings'],
     queryFn: () => adminApi.getSettings(),
+    enabled: !!token,
   })
 }
 
@@ -105,16 +123,20 @@ export function useUpdateSetting() {
 }
 
 export function useAuditLogs(params?: Record<string, unknown>) {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'audit-logs', params],
     queryFn: () => adminApi.getAuditLogs(params),
+    enabled: !!token,
   })
 }
 
 export function useStats() {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'stats'],
     queryFn: () => adminApi.getStats(),
+    enabled: !!token,
   })
 }
 
@@ -223,16 +245,20 @@ export function usePaymentDetail(id: string) {
 }
 
 export function useAdminRiders(params?: Record<string, unknown>) {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'riders', params],
     queryFn: () => adminApi.getRiders(params),
+    enabled: !!token,
   })
 }
 
 export function useAdminVehicles(params?: Record<string, unknown>) {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'vehicles', params],
     queryFn: () => adminApi.getAdminVehicles(params),
+    enabled: !!token,
   })
 }
 
@@ -261,9 +287,11 @@ export function useSuspendVehicle() {
 }
 
 export function useAdminTickets(params?: Record<string, unknown>) {
+  const token = useAdminToken()
   return useQuery<ApiResponse<PaginatedResponse<Ticket>>>({
     queryKey: ['admin', 'tickets', params],
     queryFn: () => adminApi.getAdminTickets(params) as Promise<ApiResponse<PaginatedResponse<Ticket>>>,
+    enabled: !!token,
   })
 }
 
@@ -308,9 +336,11 @@ export function useBanHistory(userId: string) {
 }
 
 export function useLiveDrivers() {
+  const token = useAdminToken()
   return useQuery({
     queryKey: ['admin', 'live-drivers'],
     queryFn: () => adminApi.getLiveDrivers(),
+    enabled: !!token,
     refetchInterval: 15000,
   })
 }

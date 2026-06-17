@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PaymentResource;
 use App\Http\Resources\WalletResource;
 use App\Http\Resources\TransactionResource;
+use App\Models\Payment;
 use App\Repositories\PaymentRepository;
 use App\Repositories\WalletRepository;
 use Illuminate\Http\JsonResponse;
@@ -20,11 +21,22 @@ class PaymentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $payments = $this->paymentRepo->findByUser($request->user()->id);
+        $paginator = Payment::whereHas('ride', fn($q) => $q->where('rider_id', $request->user()->id))
+            ->orWhereHas('ride', fn($q) => $q->whereHas('driver', fn($dq) => $dq->where('user_id', $request->user()->id)))
+            ->latest()
+            ->paginate(20);
 
         return response()->json([
             'success' => true,
-            'data' => PaymentResource::collection($payments),
+            'data' => [
+                'payments' => PaymentResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 

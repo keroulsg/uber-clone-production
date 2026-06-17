@@ -191,11 +191,18 @@ class AdminController extends Controller
 
     public function supportTickets(): JsonResponse
     {
+        $paginator = \App\Models\Ticket::with('user', 'messages.user')->latest()->paginate(20);
         return response()->json([
             'success' => true,
-            'data' => \App\Http\Resources\TicketResource::collection(
-                \App\Models\Ticket::with('user', 'messages.user')->latest()->paginate(20)
-            ),
+            'data' => [
+                'data' => \App\Http\Resources\TicketResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 

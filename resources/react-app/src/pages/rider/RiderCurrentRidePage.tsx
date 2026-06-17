@@ -12,6 +12,7 @@ import { formatCurrency, formatDuration, formatDistance } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { RouteMap } from '@/components/common/RouteMap'
@@ -83,6 +84,7 @@ export default function RiderCurrentRidePage() {
   const isTerminal = isCompleted || currentRide?.status === 'cancelled'
   const hasDriver = !!currentRide?.driver
   const hasDriverPos = driverPosition?.lat != null && driverPosition?.lng != null
+  const rideVehicle = currentRide?.vehicle || currentRide?.driver?.vehicle
 
   useEffect(() => {
     if (isArrived) {
@@ -311,14 +313,15 @@ export default function RiderCurrentRidePage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="text-xl font-bold text-primary">{currentRide.driver?.user?.name?.charAt(0)}</span>
-                </div>
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={currentRide.driver?.user?.avatarUrl || currentRide.driver?.profilePhotoUrl} alt={currentRide.driver?.user?.name} />
+                  <AvatarFallback className="bg-primary/10 text-xl font-bold text-primary">{currentRide.driver?.user?.name?.charAt(0)}</AvatarFallback>
+                </Avatar>
                 <div className="min-w-0">
                   <h3 className="font-semibold">{currentRide.driver?.user?.name}</h3>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                    {currentRide.driver?.averageRating?.toFixed(1) ?? 'N/A'}
+                    {currentRide.driver?.averageRating ? currentRide.driver.averageRating.toFixed(1) : 'New driver'}
                     <span className="text-xs">({currentRide.driver?.totalRides ?? 0} rides)</span>
                   </div>
                 </div>
@@ -329,11 +332,20 @@ export default function RiderCurrentRidePage() {
                 </a>
               </Button>
             </div>
-            {currentRide.vehicle && (
-              <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-muted text-sm">
-                {currentRide.vehicleType?.slug === 'motorcycle' ? <Bike className="h-4 w-4 text-muted-foreground" /> : <Car className="h-4 w-4 text-muted-foreground" />}
-                <span className="font-medium">{currentRide.vehicle?.make} {currentRide.vehicle?.model}</span>
-                <Badge variant="secondary" className="text-xs ml-auto">{currentRide.vehicle?.licensePlate}</Badge>
+            {rideVehicle && (
+              <div className="flex flex-wrap items-center gap-2 mt-2 p-2 rounded-lg bg-muted text-sm">
+                {rideVehicle.vehicleType?.slug === 'motorcycle' ? <Bike className="h-4 w-4 text-muted-foreground" /> : <Car className="h-4 w-4 text-muted-foreground" />}
+                <span className="font-medium">{rideVehicle.make} {rideVehicle.model}</span>
+                {rideVehicle.color && (
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: rideVehicle.color }} />
+                    {rideVehicle.color}
+                  </span>
+                )}
+                <Badge variant="secondary" className="text-xs ml-auto">{rideVehicle.licensePlate}</Badge>
+                {rideVehicle.vehicleType?.name && (
+                  <span className="text-xs text-muted-foreground w-full mt-0.5">{rideVehicle.vehicleType.name}</span>
+                )}
               </div>
             )}
           </CardContent>
@@ -419,9 +431,11 @@ export default function RiderCurrentRidePage() {
               <span>Payment: {currentRide.paymentMethod === 'wallet' ? 'Wallet' : currentRide.paymentMethod === 'cash' ? 'Cash' : currentRide.paymentMethod ?? 'N/A'}</span>
               <span>Fare: {formatCurrency(currentRide.estimatedFare)}</span>
             </div>
-            {currentRide.vehicle && (
+            {rideVehicle && (
               <div className="text-xs text-muted-foreground mt-1">
-                {currentRide.vehicle?.make} {currentRide.vehicle?.model} &middot; {currentRide.vehicle?.licensePlate}
+                {rideVehicle.make} {rideVehicle.model}
+                {rideVehicle.color && <span> &middot; {rideVehicle.color}</span>}
+                <span> &middot; {rideVehicle.licensePlate}</span>
               </div>
             )}
             {routeError && (

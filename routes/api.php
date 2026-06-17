@@ -52,12 +52,14 @@ Route::prefix('v1')->group(function () {
             Route::post('change-password', [AuthController::class, 'changePassword']);
         });
 
+        // Fare estimate (available to all authenticated users)
+        Route::post('rides/estimate-fare', [RideController::class, 'estimateFare']);
+
         // Rides (rider only via role or rider profile)
         Route::prefix('rides')->middleware('role_or_profile:rider,App\Models\Rider')->group(function () {
             Route::get('/', [RideController::class, 'index']);
             Route::post('/', [RideController::class, 'store']);
             Route::get('current', [RideController::class, 'current']);
-            Route::post('estimate-fare', [RideController::class, 'estimateFare']);
             Route::get('track-driver/{driverId}', [RideController::class, 'trackDriver']);
             Route::get('{id}', [RideController::class, 'show']);
             Route::post('{id}/cancel', [RideController::class, 'cancel']);

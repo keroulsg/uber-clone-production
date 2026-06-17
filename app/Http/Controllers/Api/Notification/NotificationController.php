@@ -12,14 +12,22 @@ class NotificationController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $notifications = Notification::where('notifiable_id', $request->user()->id)
+        $paginator = Notification::where('notifiable_id', $request->user()->id)
             ->where('notifiable_type', get_class($request->user()))
             ->latest()
-            ->get();
+            ->paginate(20);
 
         return response()->json([
             'success' => true,
-            'data' => NotificationResource::collection($notifications),
+            'data' => [
+                'data' => NotificationResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 

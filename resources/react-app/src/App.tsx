@@ -46,6 +46,7 @@ import DriverVehiclePage from './pages/driver/DriverVehiclePage'
 import DriverDocumentsPage from './pages/driver/DriverDocumentsPage'
 import DriverSettingsPage from './pages/driver/DriverSettingsPage'
 import DriverNotificationsPage from './pages/driver/DriverNotificationsPage'
+import DriverSupportPage from './pages/driver/DriverSupportPage'
 
 // Rider Pages
 import RiderDashboardPage from './pages/rider/RiderDashboardPage'
@@ -57,6 +58,7 @@ import RiderFavoritesPage from './pages/rider/RiderFavoritesPage'
 import RiderProfilePage from './pages/rider/RiderProfilePage'
 import RiderSettingsPage from './pages/rider/RiderSettingsPage'
 import RiderNotificationsPage from './pages/rider/RiderNotificationsPage'
+import RiderSupportPage from './pages/rider/RiderSupportPage'
 
 // Components
 import { LoadingScreen } from './components/common/LoadingScreen'
@@ -111,21 +113,14 @@ export default function App() {
   const _hasHydrated = useAuthStore((s) => s._hasHydrated)
   const { isLoading, isError } = useUser()
 
-  // Clear invalid token on failed auth fetch
-  useEffect(() => {
-    if (isError && token) {
-      useAuthStore.getState().logout()
-    }
-  }, [isError, token])
-
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
 
   // Wait for zustand persist hydration before any route rendering
   if (!_hasHydrated) return <LoadingScreen />
-  // Show loading while initial auth is being resolved (also during stale token cleanup)
-  if (token && (isLoading || isError)) return <LoadingScreen />
+  // Show loading while initial auth is being resolved
+  if (token && isLoading) return <LoadingScreen />
 
 
   return (
@@ -172,6 +167,7 @@ export default function App() {
         <Route path="documents" element={<DriverDocumentsPage />} />
         <Route path="settings" element={<DriverSettingsPage />} />
         <Route path="notifications" element={<DriverNotificationsPage />} />
+        <Route path="support" element={<DriverSupportPage />} />
       </Route>
 
       {/* Rider Routes */}
@@ -185,6 +181,7 @@ export default function App() {
         <Route path="profile" element={<RiderProfilePage />} />
         <Route path="settings" element={<RiderSettingsPage />} />
         <Route path="notifications" element={<RiderNotificationsPage />} />
+        <Route path="support" element={<RiderSupportPage />} />
       </Route>
 
       {/* Default redirect */}

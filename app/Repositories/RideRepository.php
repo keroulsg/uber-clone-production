@@ -12,7 +12,7 @@ class RideRepository
 {
     public function findById(int $id): ?Ride
     {
-        return Ride::with('rider', 'driver.user', 'vehicle', 'vehicleType', 'payment')->find($id);
+        return Ride::with('rider', 'driver.user', 'driver.vehicles.vehicleType', 'vehicle.vehicleType', 'vehicle', 'vehicleType', 'payment')->find($id);
     }
 
     public function create(array $data): Ride
@@ -37,7 +37,8 @@ class RideRepository
 
     public function findActiveByRider(int $riderId): ?Ride
     {
-        return Ride::where('rider_id', $riderId)
+        return Ride::with('driver.user', 'driver.vehicles.vehicleType', 'vehicle.vehicleType', 'vehicleType', 'vehicle')
+            ->where('rider_id', $riderId)
             ->whereIn('status', [
                 RideStatus::SearchingDriver,
                 RideStatus::DriverAssigned,
@@ -49,7 +50,8 @@ class RideRepository
 
     public function findActiveByDriver(int $driverId): ?Ride
     {
-        return Ride::where('driver_id', $driverId)
+        return Ride::with('driver.user', 'driver.vehicles.vehicleType', 'vehicle.vehicleType', 'vehicleType', 'vehicle')
+            ->where('driver_id', $driverId)
             ->whereIn('status', [
                 RideStatus::DriverAssigned,
                 RideStatus::DriverArrived,

@@ -85,7 +85,18 @@ export default function AdminRidesPage() {
   ]
 
   const handleExport = () => {
-    toast.success('Rides data exported successfully')
+    const headers = ['Booking ID', 'Rider', 'Driver', 'Pickup', 'Destination', 'Status', 'Fare', 'Date']
+    const rows = rides.map((r: any) => [
+      r.bookingId, r.rider?.name ?? '', r.driver?.user?.name ?? '', r.pickup?.address ?? '', r.destination?.address ?? '',
+      r.status, r.actualFare ?? r.estimatedFare ?? 0, r.createdAt,
+    ])
+    const csv = [headers.join(','), ...rows.map((r: string[]) => r.map((c: string) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `rides-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Rides exported')
   }
 
   if (isLoading) return <LoadingScreen message="Loading rides..." />

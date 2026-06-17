@@ -37,11 +37,23 @@ export default function AdminReportsPage() {
   const stats = statsRes?.data as any
 
   const handleExportCSV = () => {
+    if (!Array.isArray(chartData) || chartData.length === 0) {
+      toast.error('No data to export')
+      return
+    }
+    const headers = Object.keys(chartData[0] ?? {})
+    const rows = chartData.map((row: any) => headers.map((h) => row[h]))
+    const csv = [headers.join(','), ...rows.map((r: any[]) => r.map((c: any) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `report-${period}-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
     toast.success('Report exported as CSV')
   }
 
   const handleExportPDF = () => {
-    toast.success('Report exported as PDF')
+    toast.info('PDF export coming soon')
   }
 
   if (chartLoading || statsLoading) return <LoadingScreen message="Loading reports..." />

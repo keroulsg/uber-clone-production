@@ -1,10 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '../stores/authStore'
 import * as ticketsApi from '../api/tickets'
 
 export function useTickets(params?: Record<string, unknown>) {
+  const token = useAuthStore((s) => s.token)
   return useQuery({
     queryKey: ['tickets', params],
     queryFn: () => ticketsApi.getTickets(params),
+    enabled: !!token,
   })
 }
 

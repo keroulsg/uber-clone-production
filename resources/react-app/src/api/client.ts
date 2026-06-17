@@ -48,6 +48,7 @@ apiClient.interceptors.response.use(
         return Promise.reject(error)
       }
       isHandling401 = true
+      setTimeout(() => { isHandling401 = false }, 5000)
 
       localStorage.removeItem('auth_token')
       queryClient.cancelQueries()
@@ -55,8 +56,6 @@ apiClient.interceptors.response.use(
       useAuthStore.getState().logout()
 
       if (echo) echo.disconnect()
-
-      toast.error('Session expired. Please login again.')
 
       const currentPath = window.location.pathname
       if (currentPath !== '/login') {

@@ -207,8 +207,8 @@ class DriverRideController extends Controller
     public function complete(int $rideId, Request $request): JsonResponse
     {
         $request->validate([
-            'actual_distance' => 'required|numeric',
-            'actual_duration' => 'required|integer',
+            'actual_distance' => 'required|numeric|min:0',
+            'actual_duration' => 'required|integer|min:0',
         ]);
 
         try {
@@ -239,6 +239,9 @@ class DriverRideController extends Controller
             ]);
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Ride complete failed', ['ride_id' => $rideId, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'An unexpected error occurred'], 500);
         }
     }
 
@@ -260,8 +263,12 @@ class DriverRideController extends Controller
         $actualDistance = (float) $request->input('actual_distance', $ride->estimated_distance ?? 0);
         $actualDuration = (int) $request->input('actual_duration', $ride->estimated_duration ?? 0);
 
-        $vehicleType = $ride->vehicleType ?? $this->vehicleTypeRepo->findById($ride->vehicle_type_id);
+        $vehicleType = $ride->vehicleType ?? ($ride->vehicle_type_id ? $this->vehicleTypeRepo->findById($ride->vehicle_type_id) : null);
         $vehicle = $ride->vehicle;
+
+        if (!$vehicleType) {
+            return response()->json(['success' => false, 'message' => 'Ride has no vehicle type assigned'], 400);
+        }
 
         $fareBreakdown = $this->fareCalc->calculateEstimatedFare($vehicleType, $actualDistance, $actualDuration, $vehicle);
 
@@ -311,11 +318,22 @@ class DriverRideController extends Controller
             return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
         }
 
-        $rides = $this->rideRepo->findByDriver($driver->id);
+        $paginator = \App\Models\Ride::where('driver_id', $driver->id)
+            ->with('rider', 'vehicleType', 'payment')
+            ->latest()
+            ->paginate(20);
 
         return response()->json([
             'success' => true,
-            'data' => \App\Http\Resources\RideBriefResource::collection($rides),
+            'data' => [
+                'data' => \App\Http\Resources\RideBriefResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 }
