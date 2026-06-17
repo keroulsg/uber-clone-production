@@ -28,6 +28,7 @@ class AdminService
             'total_drivers' => Driver::count(),
             'total_rides' => Ride::count(),
             'active_drivers' => Driver::where('is_online', true)->count(),
+            'online_riders' => 0,
             'today_revenue' => Ride::whereDate('completed_at', today())
                 ->where('status', RideStatus::RideCompleted)
                 ->sum('actual_fare'),

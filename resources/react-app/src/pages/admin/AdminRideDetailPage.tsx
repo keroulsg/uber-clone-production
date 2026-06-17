@@ -133,9 +133,8 @@ export default function AdminRideDetailPage() {
             <div className="space-y-2">
               {statusHistory.map((h: any) => (
                 <div key={h.id} className="flex items-center gap-3 text-sm">
-                  <Badge variant="outline">{h.from_status} → {h.to_status}</Badge>
+                  <Badge variant="outline">{h.status}</Badge>
                   <span className="text-muted-foreground">{formatDate(h.created_at)}</span>
-                  {h.changed_by && <span className="text-xs text-muted-foreground">by {h.changed_by}</span>}
                 </div>
               ))}
             </div>

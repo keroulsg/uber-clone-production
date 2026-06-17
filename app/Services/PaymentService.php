@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\LedgerEntry;
 use App\Models\DriverDebt;
 use App\Models\Notification;
+use App\Models\Setting;
 use App\Enums\RideStatus;
 use App\Enums\PaymentStatus;
 use App\Repositories\WalletRepository;
@@ -52,7 +53,7 @@ class PaymentService
             'platform_fee' => $commission,
             'driver_amount' => $ride->payment_method === 'cash' ? 0 : $driverAmount,
             'tax_amount' => 0,
-            'currency' => 'USD',
+            'currency' => Setting::where('key', 'default_currency')->value('value') ?? 'EGP',
             'payment_method' => $ride->payment_method,
             'status' => PaymentStatus::Completed,
             'applied_commission_rate' => $commissionRate,

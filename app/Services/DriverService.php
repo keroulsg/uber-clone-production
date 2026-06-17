@@ -30,7 +30,11 @@ class DriverService
 
     public function updateLocation(UpdateDriverLocationDTO $dto): bool
     {
-        return Driver::where('id', $dto->driverId)->update([
+        $driver = Driver::find($dto->driverId);
+        if (!$driver) {
+            return false;
+        }
+        return $driver->update([
             'latitude' => $dto->latitude,
             'longitude' => $dto->longitude,
         ]);

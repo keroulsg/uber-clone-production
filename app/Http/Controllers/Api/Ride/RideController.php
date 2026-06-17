@@ -11,14 +11,18 @@ use App\Services\RideService;
 use App\Services\FareCalculationService;
 use App\Repositories\RideRepository;
 use App\Repositories\VehicleTypeRepository;
+use App\Repositories\DriverRepository;
 use App\DTOs\CreateRideDTO;
 use App\DTOs\FareEstimationDTO;
 use App\Models\Ride;
 use App\Models\Rider;
+use App\Models\Driver;
+use App\Models\RideDriverOffer;
 use App\Models\Notification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 
 class RideController extends Controller
 {
@@ -27,6 +31,7 @@ class RideController extends Controller
         private FareCalculationService $fareCalc,
         private RideRepository $rideRepo,
         private VehicleTypeRepository $vehicleTypeRepo,
+        private DriverRepository $driverRepo,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -55,6 +60,16 @@ class RideController extends Controller
             $dto->destinationLatitude,
             $dto->destinationLongitude
         );
+
+        if ($distance > 80) {
+            Log::warning('Suspiciously large distance for ride', [
+                'pickup' => [$dto->pickupLatitude, $dto->pickupLongitude],
+                'destination' => [$dto->destinationLatitude, $dto->destinationLongitude],
+                'distance_km' => $distance,
+            ]);
+            return response()->json(['success' => false, 'message' => 'Pickup and destination are too far apart'], 422);
+        }
+
         $duration = (int) ($distance / 40 * 60);
         $fare = $this->fareCalc->calculateEstimatedFare($vehicleType, $distance, $duration);
 
@@ -82,13 +97,25 @@ class RideController extends Controller
             'created_at' => now(),
         ]);
 
-        // Create offers for online drivers
-        $onlineDrivers = \App\Models\Driver::where('is_online', true)->get();
-        foreach ($onlineDrivers as $driver) {
-            \App\Models\RideDriverOffer::create([
+        // Create offer for nearest eligible driver
+        $eligibleDrivers = $this->driverRepo->findEligibleForRide(
+            $dto->pickupLatitude,
+            $dto->pickupLongitude,
+            $dto->vehicleTypeId,
+        );
+
+        if ($eligibleDrivers->isEmpty()) {
+            Log::info('No eligible drivers for ride', ['ride_id' => $ride->id]);
+        } else {
+            $nearest = $eligibleDrivers->first();
+            RideDriverOffer::create([
                 'ride_id' => $ride->id,
-                'driver_id' => $driver->id,
+                'driver_id' => $nearest->id,
                 'status' => 'pending',
+            ]);
+            Log::info('Offer sent to driver', [
+                'ride_id' => $ride->id,
+                'driver_id' => $nearest->id,
             ]);
         }
 
@@ -130,7 +157,7 @@ class RideController extends Controller
         $ride = $this->rideRepo->findActiveByRider($request->user()->id);
 
         if (!$ride) {
-            return response()->json(['success' => false, 'message' => 'No active ride'], 404);
+            return response()->json(['success' => true, 'data' => null]);
         }
 
         return response()->json([
@@ -161,6 +188,10 @@ class RideController extends Controller
             $request->input('destination_latitude'),
             $request->input('destination_longitude')
         );
+
+        if ($distance > 80) {
+            return response()->json(['success' => false, 'message' => 'Pickup and destination are too far apart for a local trip'], 422);
+        }
 
         $duration = (int) ($distance / 40 * 60); // assume 40 km/h avg speed
 
@@ -204,9 +235,22 @@ class RideController extends Controller
 
     public function trackDriver(int $driverId): JsonResponse
     {
+        $driver = Driver::find($driverId);
+
+        if (!$driver || !$driver->is_online) {
+            return response()->json([
+                'success' => true,
+                'data' => null,
+            ]);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => null,
+            'data' => [
+                'latitude' => $driver->latitude ? (float) $driver->latitude : null,
+                'longitude' => $driver->longitude ? (float) $driver->longitude : null,
+                'bearing' => 0,
+            ],
         ]);
     }
 

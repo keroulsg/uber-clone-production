@@ -82,6 +82,16 @@ class Driver extends Model
         return $this->hasMany(DriverDebt::class);
     }
 
+    public function warnings()
+    {
+        return $this->hasMany(DriverWarning::class);
+    }
+
+    public function penalties()
+    {
+        return $this->hasMany(DriverPenalty::class);
+    }
+
     public function scopeOnline($query)
     {
         return $query->where('is_online', true)->where('is_active', true);

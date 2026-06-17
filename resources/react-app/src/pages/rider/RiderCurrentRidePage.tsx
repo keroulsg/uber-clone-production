@@ -105,14 +105,11 @@ export default function RiderCurrentRidePage() {
       const dist = MapService.haversineDistance(from, to)
       setDriverPickupDistance(dist)
       setDriverPickupEta(Math.ceil(dist / 0.5))
-      MapService.getRoute(from, to).then((path) => {
+      MapService.getRoute(from, to).then((result) => {
+        const path = result.points
         if (path.length < 2) return
-        let totalDistKm = 0
-        for (let i = 1; i < path.length; i++) {
-          totalDistKm += MapService.haversineDistance(path[i - 1], path[i])
-        }
-        setDriverPickupDistance(parseFloat(totalDistKm.toFixed(1)))
-        setDriverPickupEta(Math.ceil(totalDistKm / 0.5))
+        setDriverPickupDistance(Math.round(result.distance * 10) / 10)
+        setDriverPickupEta(result.duration)
       }).catch(() => setRouteError(true))
     }
   }, [isDriverAssigned, hasDriverPos, driverPosition?.lat, driverPosition?.lng, currentRide?.pickup.lat, currentRide?.pickup.lng])
@@ -125,14 +122,11 @@ export default function RiderCurrentRidePage() {
       const dist = MapService.haversineDistance(from, to)
       setDriverDestDistance(dist)
       setDriverDestEta(Math.ceil(dist / 0.5))
-      MapService.getRoute(from, to).then((path) => {
+      MapService.getRoute(from, to).then((result) => {
+        const path = result.points
         if (path.length < 2) return
-        let totalDistKm = 0
-        for (let i = 1; i < path.length; i++) {
-          totalDistKm += MapService.haversineDistance(path[i - 1], path[i])
-        }
-        setDriverDestDistance(parseFloat(totalDistKm.toFixed(1)))
-        setDriverDestEta(Math.ceil(totalDistKm / 0.5))
+        setDriverDestDistance(Math.round(result.distance * 10) / 10)
+        setDriverDestEta(result.duration)
       }).catch(() => setRouteError(true))
     }
   }, [isStarted, hasDriverPos, driverPosition?.lat, driverPosition?.lng, currentRide?.destination.lat, currentRide?.destination.lng])

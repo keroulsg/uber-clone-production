@@ -54,6 +54,8 @@ export default function AdminDriverProfilePage() {
   const driver: Driver | null = result?.driver ?? null
   const performance = result?.performance ?? {}
   const totalDebt = result?.total_debt ?? 0
+  const warnings = result?.warnings ?? []
+  const penalties = result?.penalties ?? []
   const complaints = result?.complaints ?? []
   const recentRides = result?.recent_rides ?? []
 
@@ -187,7 +189,7 @@ export default function AdminDriverProfilePage() {
             <div><p className="text-muted-foreground">Gender</p><p className="font-medium">{driver.user?.gender ?? '—'}</p></div>
             <div><p className="text-muted-foreground">Address</p><p className="font-medium">{(driver as any).address ?? '—'}</p></div>
             <div><p className="text-muted-foreground">License</p><p className="font-medium">{driver.licenseNumber ?? '—'}</p></div>
-            <div><p className="text-muted-foreground">Rating</p><p className="font-medium">{driver.averageRating.toFixed(1)} ★</p></div>
+            <div><p className="text-muted-foreground">Rating</p><p className="font-medium">{(driver.averageRating ?? 0).toFixed(1)} ★</p></div>
           </div>
         </CardContent>
       </Card>
@@ -247,7 +249,7 @@ export default function AdminDriverProfilePage() {
             <div><p className="text-muted-foreground">Rating</p><p className="font-medium text-lg">{(performance.average_rating ?? 0).toFixed(1)} ★</p></div>
             <div><p className="text-muted-foreground">Earnings</p><p className="font-medium text-lg">{formatCurrency(performance.total_earnings ?? 0)}</p></div>
             <div><p className="text-muted-foreground">Debt</p><p className="font-medium text-lg text-amber-600">{formatCurrency(totalDebt)}</p></div>
-            <div><p className="text-muted-foreground">Warnings</p><p className="font-medium text-lg">{(driver as any).warnings?.length ?? 0}</p></div>
+            <div><p className="text-muted-foreground">Warnings</p><p className="font-medium text-lg">{warnings?.length ?? 0}</p></div>
           </div>
         </CardContent>
       </Card>
@@ -269,8 +271,8 @@ export default function AdminDriverProfilePage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {(driver as any).warnings?.length > 0 ? (
-              (driver as any).warnings.map((w: any) => (
+            {warnings?.length > 0 ? (
+              warnings.map((w: any) => (
                 <div key={w.id} className="flex items-start gap-3 p-3 border rounded-lg">
                   <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
                   <div>
@@ -282,10 +284,10 @@ export default function AdminDriverProfilePage() {
             ) : (
               <p className="text-sm text-muted-foreground">No warnings</p>
             )}
-            {(driver as any).penalties?.length > 0 && (
+            {penalties?.length > 0 && (
               <>
                 <h4 className="font-medium mt-4">Penalties</h4>
-                {(driver as any).penalties.map((p: any) => (
+                {penalties.map((p: any) => (
                   <div key={p.id} className="flex items-start gap-3 p-3 border rounded-lg">
                     <DollarSign className="h-5 w-5 text-red-500 mt-0.5" />
                     <div>

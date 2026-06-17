@@ -36,8 +36,8 @@ export function useToggleOnlineStatus() {
   return useMutation({
     mutationFn: () => driversApi.toggleOnlineStatus(),
     onSuccess: (res) => {
-      setOnlineStatus(res.data.is_online)
-      toast.success(res.data.is_online ? 'You are now online' : 'You are now offline')
+      setOnlineStatus(res.is_online)
+      toast.success(res.is_online ? 'You are now online' : 'You are now offline')
       queryClient.invalidateQueries({ queryKey: ['driver', 'profile'] })
     },
     onError: () => {

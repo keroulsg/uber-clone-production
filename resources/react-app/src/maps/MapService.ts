@@ -54,7 +54,7 @@ export class MapService {
 
   // --- Routing ---
 
-  static async getRoute(start: LatLng, end: LatLng): Promise<RoutePoint[]> {
+  static async getRoute(start: LatLng, end: LatLng): Promise<{ points: RoutePoint[]; distance: number; duration: number }> {
     try {
       const coords = `${start.lng},${start.lat};${end.lng},${end.lat}`
       const url = `${OSRM_BASE}/route/v1/driving/${coords}?geometries=geojson&overview=full`
@@ -63,24 +63,35 @@ export class MapService {
 
       const data: {
         code: string
-        routes?: Array<{ geometry: { coordinates: [number, number][] } }>
+        routes?: Array<{ geometry: { coordinates: [number, number][] }; distance: number; duration: number }>
       } = await res.json()
 
       if (data.code !== 'Ok' || !data.routes?.length) {
         throw new Error(`OSRM returned code: ${data.code}`)
       }
 
-      return data.routes[0].geometry.coordinates.map(([lng, lat]) => ({ lat, lng }))
+      const route = data.routes[0]
+      const points = route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }))
+      const distance = route.distance / 1000
+      const duration = Math.round(route.duration / 60)
+
+      return { points, distance, duration }
     } catch (err) {
       this.log('error', 'Routing failed, using straight line', {
         start,
         end,
         error: String(err),
       })
-      return [
-        { lat: start.lat, lng: start.lng },
-        { lat: end.lat, lng: end.lng },
-      ]
+      const dist = this.haversineDistance(start, end)
+      const dur = Math.max(1, Math.round((dist / 30) * 60))
+      return {
+        points: [
+          { lat: start.lat, lng: start.lng },
+          { lat: end.lat, lng: end.lng },
+        ],
+        distance: Math.round(dist * 10) / 10,
+        duration: dur,
+      }
     }
   }
 

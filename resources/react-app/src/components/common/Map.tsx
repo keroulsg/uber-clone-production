@@ -160,7 +160,7 @@ export function Map({
         paint: { 'line-color': '#3b82f6', 'line-opacity': 0.8, 'line-width': 3 },
       })
     }
-  }, [polyline])
+  }, [polyline, state.loaded])
 
   // Surge zone circle overlay
   useEffect(() => {

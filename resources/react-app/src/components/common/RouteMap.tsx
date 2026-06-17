@@ -49,8 +49,8 @@ export function RouteMap({
     const start = routeStart()
     if (!start) { setRoutePath([]); return }
     const end = routeEnd()
-    const path = await MapService.getRoute(start, end)
-    setRoutePath(path)
+    const result = await MapService.getRoute(start, end)
+    setRoutePath(result.points)
   }, [routeStart, routeEnd])
 
   useEffect(() => { fetchRoute() }, [fetchRoute])

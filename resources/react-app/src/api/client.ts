@@ -13,8 +13,8 @@ const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  const token = useAuthStore.getState().token || localStorage.getItem('auth_token')
+  if (token) { config.headers.Authorization = `Bearer ${token}` }
 
   const traceId = crypto.randomUUID?.() ?? Date.now().toString(36) + Math.random().toString(36).slice(2)
   config.headers['X-Trace-Id'] = traceId

@@ -94,38 +94,85 @@ class AdminController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data' => UserResource::collection(User::with('rider', 'driver')->latest()->paginate(20)),
+            'data' => UserResource::collection(User::with('rider', 'driver', 'latestBan')->latest()->paginate(20)),
         ]);
     }
 
     public function rides(): JsonResponse
     {
+        $paginator = Ride::with('rider', 'driver.user', 'vehicle', 'vehicleType', 'payment')->latest()->paginate(20);
         return response()->json([
             'success' => true,
-            'data' => RideResource::collection(Ride::with('rider', 'driver.user', 'vehicleType', 'payment')->latest()->paginate(20)),
+            'data' => [
+                'data' => RideResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 
     public function rideDetail(int $id): JsonResponse
     {
-        $ride = $this->rideRepo->findById($id);
+        $ride = Ride::with('rider', 'driver.user', 'vehicle', 'vehicleType', 'payment', 'statusHistories', 'offers')
+            ->with('driver.debts')
+            ->find($id);
         if (!$ride) {
             return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
         }
 
+        $payment = $ride->payment;
+
         return response()->json([
             'success' => true,
-            'data' => new RideResource($ride),
+            'data' => [
+                'ride' => new RideResource($ride),
+                'status_history' => $ride->statusHistories->map(fn($h) => [
+                    'id' => $h->id,
+                    'status' => $h->status->value,
+                    'created_at' => $h->created_at?->toISOString(),
+                ]),
+                'ledger_entries' => [],
+                'debts' => $ride->driver?->debts?->map(fn($d) => [
+                    'id' => $d->id,
+                    'ride_id' => (string) $d->ride_id,
+                    'type' => $d->type,
+                    'amount' => (float) $d->amount,
+                    'status' => $d->paid_at ? 'paid' : 'unpaid',
+                    'created_at' => $d->created_at?->toISOString(),
+                ]) ?? [],
+                'payment' => $payment ? [
+                    'id' => (string) $payment->id,
+                    'amount' => (float) $payment->amount,
+                    'platform_fee' => (float) $payment->platform_fee,
+                    'driver_amount' => (float) $payment->driver_amount,
+                    'company_commission' => (float) $payment->company_commission,
+                    'currency' => $payment->currency,
+                    'method' => $payment->payment_method ?? $payment->method,
+                    'status' => $payment->status->value,
+                    'paid_at' => $payment->paid_at?->toISOString(),
+                ] : null,
+            ],
         ]);
     }
 
     public function payments(): JsonResponse
     {
+        $paginator = \App\Models\Payment::with('ride.rider', 'ride.driver.user')->latest()->paginate(20);
         return response()->json([
             'success' => true,
-            'data' => \App\Http\Resources\PaymentResource::collection(
-                \App\Models\Payment::with('ride.rider', 'ride.driver.user')->latest()->paginate(20)
-            ),
+            'data' => [
+                'data' => \App\Http\Resources\PaymentResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 
@@ -179,7 +226,9 @@ class AdminController extends Controller
             'success' => true,
             'data' => DriverResource::collection(
                 Driver::with('user', 'vehicles.vehicleType')
-                    ->where('is_online', true)
+                    ->online()
+                    ->whereNotNull('latitude')
+                    ->whereNotNull('longitude')
                     ->get()
             ),
         ]);

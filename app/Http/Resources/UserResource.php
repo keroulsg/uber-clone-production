@@ -21,9 +21,12 @@ class UserResource extends JsonResource
             'emailVerifiedAt' => $this->email_verified_at?->toISOString(),
             'phoneVerifiedAt' => $this->phone_verified_at?->toISOString(),
             'createdAt' => $this->created_at?->toISOString(),
-            'blockedAt' => null,
-            'blockedById' => null,
-            'blockReason' => null,
+            'blockedAt' => $this->relationLoaded('latestBan') && $this->latestBan && $this->latestBan->action === 'blocked'
+                ? $this->latestBan->created_at?->toISOString() : null,
+            'blockedById' => $this->relationLoaded('latestBan') && $this->latestBan && $this->latestBan->action === 'blocked'
+                ? (string) ($this->latestBan->acted_by ?? '') : null,
+            'blockReason' => $this->relationLoaded('latestBan') && $this->latestBan && $this->latestBan->action === 'blocked'
+                ? $this->latestBan->reason : null,
         ];
     }
 }

@@ -15,9 +15,11 @@ export const updateDriverProfile = (
 ): Promise<ApiResponse<Driver>> =>
   apiClient.post('/driver/profile', data).then((r) => r.data)
 
-export const toggleOnlineStatus = (): Promise<
-  ApiResponse<{ is_online: boolean }>
-> => apiClient.post('/driver/toggle-online').then((r) => r.data)
+export const toggleOnlineStatus = (): Promise<{
+  success: boolean
+  message: string
+  is_online: boolean
+}> => apiClient.post('/driver/toggle-online').then((r) => r.data)
 
 export const updateLocation = (
   lat: number,

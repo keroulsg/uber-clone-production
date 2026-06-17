@@ -19,7 +19,6 @@ import { getInitials } from '@/lib/utils'
 import { Map } from '@/components/common/Map'
 import type { SurgeZone } from '@/components/common/Map'
 import type { ApiResponse, DashboardStats, PaginatedResponse, Ride, Driver, RoutePoint } from '@/types'
-import type { LiveDriver } from '@/api/admin'
 
 export default function AdminDashboardPage() {
   const { data: dashRes, isLoading: dashLoading, isError: dashError, refetch: dashRefetch } = useDashboard()
@@ -238,7 +237,7 @@ export default function AdminDashboardPage() {
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="secondary">
-              {(liveDriversData?.data as LiveDriver[] | undefined)?.length ?? 0} online
+              {(liveDriversData?.data as any[] | undefined)?.length ?? 0} online
             </Badge>
             <SurgeBadge />
           </div>
@@ -247,7 +246,7 @@ export default function AdminDashboardPage() {
           {liveLoading ? (
             <div className="h-[300px] rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground">Loading map...</div>
           ) : (() => {
-            const drivers = (liveDriversData?.data as LiveDriver[] | undefined) ?? []
+            const drivers = (liveDriversData?.data as any[] | undefined) ?? []
             const withCoords = drivers.filter((d) => d.latitude != null && d.longitude != null)
 
             if (drivers.length === 0) {
@@ -277,16 +276,16 @@ export default function AdminDashboardPage() {
                     lat: d.latitude,
                     lng: d.longitude,
                     color: 'green' as const,
-                    label: d.driver_name?.charAt(0) ?? 'D',
+                    label: d.user?.name?.charAt(0) ?? 'D',
                   }))}
                   surgeZone={surgeData?.data as SurgeZone | null | undefined}
                 />
                 <div className="text-xs text-muted-foreground space-y-1">
-                  {withCoords.slice(0, 10).map((d) => (
-                    <div key={d.driver_id} className="flex justify-between">
-                      <span className="font-medium">{d.driver_name}</span>
+                  {withCoords.slice(0, 10).map((d: any) => (
+                    <div key={d.id} className="flex justify-between">
+                      <span className="font-medium">{d.user?.name ?? 'Unknown'}</span>
                       <span>
-                        {d.vehicle_type ?? '—'} · {d.vehicle_plate ?? '—'}
+                        {d.vehicle?.vehicleType?.name ?? '—'} · {d.vehicle?.licensePlate ?? '—'}
                       </span>
                     </div>
                   ))}

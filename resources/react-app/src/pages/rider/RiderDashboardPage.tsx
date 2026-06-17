@@ -151,27 +151,20 @@ export default function RiderDashboardPage() {
     let cancelled = false
     setRouteLoading(true)
     ;(async () => {
-      const route = await MapService.getRoute(
+      const result = await MapService.getRoute(
         { lat: pickupLat, lng: pickupLng },
         { lat: destLat, lng: destLng },
       )
       if (cancelled) return
-      setRoutePath(route)
-      if (route.length >= 2) {
-        const totalDist = route.reduce((sum, pt, i) => {
-          if (i === 0) return 0
-          return sum + MapService.haversineDistance(route[i - 1], pt)
-        }, 0)
-        const avgSpeed = 30
-        setRouteDistance(totalDist)
-        setRouteDuration(Math.max(1, Math.round((totalDist / avgSpeed) * 60)))
-      }
+      setRoutePath(result.points)
+      setRouteDistance(Math.round(result.distance * 10) / 10)
+      setRouteDuration(result.duration)
       setRouteLoading(false)
     })()
     return () => { cancelled = true }
   }, [pickupLat, pickupLng, destLat, destLng])
 
-  // Fetch fare estimate when vehicle type changes
+  // Fetch fare estimate when vehicle type or coordinates change
   useEffect(() => {
     if (!canEstimate || !pickupLat || !pickupLng || !destLat || !destLng) return
     estimateFare.mutate({
@@ -181,7 +174,7 @@ export default function RiderDashboardPage() {
       destinationLng: destLng,
       vehicleTypeId: selectedVehicleType,
     })
-  }, [selectedVehicleType]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedVehicleType, pickupLat, pickupLng, destLat, destLng]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMapClick = useCallback(async (lat: number, lng: number) => {
     if (!pickupLat) {

@@ -14,11 +14,18 @@ class AdminRiderController extends Controller
 {
     public function index(): JsonResponse
     {
+        $paginator = Rider::with('user')->latest()->paginate(20);
         return response()->json([
             'success' => true,
-            'data' => RiderResource::collection(
-                Rider::with('user')->latest()->paginate(20)
-            ),
+            'data' => [
+                'data' => RiderResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 
@@ -29,15 +36,46 @@ class AdminRiderController extends Controller
             return response()->json(['success' => false, 'message' => 'Rider not found'], 404);
         }
 
+        $rides = Ride::where('rider_id', $id)->get();
+        $completedRides = $rides->where('status', 'completed')->count();
+        $cancelledRides = $rides->whereIn('status', ['cancelled', 'cancelled_by_rider', 'cancelled_by_driver'])->count();
+
+        $wallet = \App\Models\Wallet::where('user_id', $rider->user_id)->first();
+
         return response()->json([
             'success' => true,
-            'data' => new RiderResource($rider),
+            'data' => [
+                'rider' => new RiderResource($rider),
+                'stats' => [
+                    'total_rides' => (int) $rider->total_rides,
+                    'completed_rides' => $completedRides,
+                    'cancelled_rides' => $cancelledRides,
+                    'total_spent' => (float) $rider->total_spent,
+                    'average_rating' => (float) $rider->average_rating,
+                ],
+                'wallet' => $wallet ? [
+                    'balance' => (float) $wallet->balance,
+                    'currency' => $wallet->currency,
+                ] : null,
+                'recent_rides' => \App\Http\Resources\RideResource::collection(
+                    Ride::where('rider_id', $id)
+                        ->with('driver.user', 'vehicle', 'vehicleType')
+                        ->latest()
+                        ->take(5)
+                        ->get()
+                ),
+            ],
         ]);
     }
 
     public function suspend(int $id): JsonResponse
     {
-        Rider::where('id', $id)->update(['is_active' => false]);
+        $rider = Rider::find($id);
+        if (!$rider) {
+            return response()->json(['success' => false, 'message' => 'Rider not found'], 404);
+        }
+
+        $rider->update(['is_active' => false]);
 
         return response()->json([
             'success' => true,
@@ -47,7 +85,12 @@ class AdminRiderController extends Controller
 
     public function reactivate(int $id): JsonResponse
     {
-        Rider::where('id', $id)->update(['is_active' => true]);
+        $rider = Rider::find($id);
+        if (!$rider) {
+            return response()->json(['success' => false, 'message' => 'Rider not found'], 404);
+        }
+
+        $rider->update(['is_active' => true]);
 
         return response()->json([
             'success' => true,
@@ -99,7 +142,7 @@ class AdminRiderController extends Controller
             'success' => true,
             'data' => \App\Http\Resources\RideResource::collection(
                 Ride::where('rider_id', $id)
-                    ->with('driver.user', 'vehicleType', 'payment')
+                    ->with('rider', 'driver.user', 'vehicle', 'vehicleType', 'payment')
                     ->latest()
                     ->paginate(20)
             ),
@@ -112,7 +155,7 @@ class AdminRiderController extends Controller
             'success' => true,
             'data' => \App\Http\Resources\PaymentResource::collection(
                 \App\Models\Payment::whereHas('ride', fn($q) => $q->where('rider_id', $id))
-                    ->with('ride.driver.user')
+                    ->with('ride.rider', 'ride.driver.user')
                     ->latest()
                     ->paginate(20)
             ),

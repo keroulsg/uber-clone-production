@@ -52,10 +52,10 @@ export const cancelRide = (
 
 const normalizeEstimateFareParams = (params: Record<string, unknown>) => {
   return {
-    pickup_lat: params.pickupLat as number,
-    pickup_lng: params.pickupLng as number,
-    dest_lat: (params.destinationLat ?? params.destLat) as number,
-    dest_lng: (params.destinationLng ?? params.destLng) as number,
+    pickup_latitude: params.pickupLat as number,
+    pickup_longitude: params.pickupLng as number,
+    destination_latitude: (params.destinationLat ?? params.destLat) as number,
+    destination_longitude: (params.destinationLng ?? params.destLng) as number,
     vehicle_type_id: (params.vehicleTypeId as number | string) ?? params.vehicle_type_id,
   }
 }

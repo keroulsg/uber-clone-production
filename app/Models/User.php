@@ -68,4 +68,14 @@ class User extends Authenticatable
     {
         return $this->morphMany(Notification::class, 'notifiable');
     }
+
+    public function banHistories()
+    {
+        return $this->hasMany(BanHistory::class);
+    }
+
+    public function latestBan()
+    {
+        return $this->hasOne(BanHistory::class)->latestOfMany();
+    }
 }

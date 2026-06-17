@@ -13,10 +13,10 @@ import { Card, CardContent } from '@/components/ui/card'
 interface RiderRow {
   id: string
   user: { id: string; name: string; email: string; phone?: string; avatarUrl?: string }
-  total_rides: number
-  total_spent: number
-  average_rating: number
-  created_at: string
+  totalRides: number
+  totalSpent: number
+  averageRating: number
+  createdAt: string
 }
 
 export default function AdminRidersPage() {
@@ -54,21 +54,21 @@ export default function AdminRidersPage() {
     { header: 'Phone', accessor: (row) => row.user?.phone ?? '—' },
     {
       header: 'Total Rides',
-      accessor: (row) => row.total_rides ?? 0,
+      accessor: (row) => row.totalRides ?? 0,
       sortable: true,
     },
     {
       header: 'Total Spent',
-      accessor: (row) => formatCurrency(row.total_spent ?? 0),
+      accessor: (row) => formatCurrency(row.totalSpent ?? 0),
       sortable: true,
     },
     {
       header: 'Rating',
-      accessor: (row) => (row.average_rating ?? 0).toFixed(1),
+      accessor: (row) => (row.averageRating ?? 0).toFixed(1),
     },
     {
       header: 'Joined',
-      accessor: (row) => formatDate(row.created_at),
+      accessor: (row) => formatDate(row.createdAt),
       sortable: true,
     },
     {

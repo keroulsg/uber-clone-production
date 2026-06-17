@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\RideResource;
 use App\Services\RideService;
 use App\Services\PaymentService;
+use App\Services\FareCalculationService;
 use App\Repositories\RideRepository;
 use App\Repositories\DriverRepository;
+use App\Repositories\VehicleTypeRepository;
 use App\Models\Notification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,8 +19,10 @@ class DriverRideController extends Controller
     public function __construct(
         private RideService $rideService,
         private PaymentService $paymentService,
+        private FareCalculationService $fareCalc,
         private RideRepository $rideRepo,
         private DriverRepository $driverRepo,
+        private VehicleTypeRepository $vehicleTypeRepo,
     ) {}
 
     public function pending(Request $request): JsonResponse
@@ -26,6 +30,18 @@ class DriverRideController extends Controller
         $driver = $this->driverRepo->findByUserId($request->user()->id);
         if (!$driver) {
             return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $pendingOffers = \App\Models\RideDriverOffer::where('driver_id', $driver->id)
+            ->where('status', 'pending')
+            ->where('created_at', '<', now()->subSeconds(60))
+            ->get();
+
+        foreach ($pendingOffers as $offer) {
+            $ride = $this->rideRepo->findById($offer->ride_id);
+            if ($ride) {
+                $this->rideService->processDriverOffers($ride);
+            }
         }
 
         $offerRideIds = \App\Models\RideDriverOffer::where('driver_id', $driver->id)
@@ -58,6 +74,11 @@ class DriverRideController extends Controller
 
         if ($ride->status !== \App\Enums\RideStatus::SearchingDriver) {
             return response()->json(['success' => false, 'message' => 'Ride is no longer available'], 409);
+        }
+
+        $activeRide = $this->rideRepo->findActiveByDriver($driver->id);
+        if ($activeRide) {
+            return response()->json(['success' => false, 'message' => 'You already have an active ride'], 409);
         }
 
         $offer = \App\Models\RideDriverOffer::where('ride_id', $ride->id)
@@ -117,6 +138,11 @@ class DriverRideController extends Controller
         }
 
         $offer->update(['status' => 'rejected']);
+
+        $ride = $this->rideRepo->findById($rideId);
+        if ($ride && $ride->status === \App\Enums\RideStatus::SearchingDriver) {
+            $this->rideService->processDriverOffers($ride);
+        }
 
         return response()->json([
             'success' => true,
@@ -231,9 +257,31 @@ class DriverRideController extends Controller
             return response()->json(['success' => false, 'message' => 'This ride is not assigned to you'], 403);
         }
 
+        $actualDistance = (float) $request->input('actual_distance', $ride->estimated_distance ?? 0);
+        $actualDuration = (int) $request->input('actual_duration', $ride->estimated_duration ?? 0);
+
+        $vehicleType = $ride->vehicleType ?? $this->vehicleTypeRepo->findById($ride->vehicle_type_id);
+        $vehicle = $ride->vehicle;
+
+        $fareBreakdown = $this->fareCalc->calculateEstimatedFare($vehicleType, $actualDistance, $actualDuration, $vehicle);
+
+        $outstandingDebt = \App\Models\DriverDebt::where('driver_id', $driver->id)
+            ->whereNull('paid_at')
+            ->sum('amount');
+
+        $rideData = new RideResource($ride);
+
         return response()->json([
             'success' => true,
-            'data' => new RideResource($ride),
+            'data' => [
+                'ride_id' => (int) $ride->id,
+                'booking_id' => $rideData['bookingId'] ?? ('RIDE-' . str_pad((string) $ride->id, 6, '0', STR_PAD_LEFT)),
+                'actual_distance' => $actualDistance,
+                'actual_duration' => $actualDuration,
+                'fare_breakdown' => $fareBreakdown,
+                'driver_outstanding_debt' => (float) $outstandingDebt,
+                'payment_method' => $ride->payment_method ?? 'wallet',
+            ],
         ]);
     }
 
@@ -247,7 +295,7 @@ class DriverRideController extends Controller
         $ride = $this->rideRepo->findActiveByDriver($driver->id);
 
         if (!$ride) {
-            return response()->json(['success' => false, 'message' => 'No active ride'], 404);
+            return response()->json(['success' => true, 'data' => null]);
         }
 
         return response()->json([

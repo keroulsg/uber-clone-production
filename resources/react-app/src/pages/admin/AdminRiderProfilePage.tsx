@@ -34,11 +34,10 @@ export default function AdminRiderProfilePage() {
 
   const result = data?.data as any
   const rider = result?.rider ?? null
-  const user = result?.user ?? null
+  const user = rider?.user ?? null
   const stats = result?.stats ?? {}
   const wallet = result?.wallet ?? null
   const complaints = result?.complaints ?? []
-  const tickets = result?.tickets ?? []
   const recentRides = result?.recent_rides ?? []
 
   const { data: banHistoryData } = useBanHistory(user?.id ?? '')

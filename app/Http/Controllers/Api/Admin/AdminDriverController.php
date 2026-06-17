@@ -16,11 +16,18 @@ class AdminDriverController extends Controller
 {
     public function index(): JsonResponse
     {
+        $paginator = Driver::with('user', 'vehicles.vehicleType')->latest()->paginate(20);
         return response()->json([
             'success' => true,
-            'data' => DriverResource::collection(
-                Driver::with('user', 'vehicles.vehicleType')->latest()->paginate(20)
-            ),
+            'data' => [
+                'data' => DriverResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 
@@ -42,14 +49,38 @@ class AdminDriverController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $driver = Driver::with('user', 'vehicles.vehicleType')->find($id);
+        $driver = Driver::with('user', 'vehicles.vehicleType', 'warnings', 'penalties')->find($id);
         if (!$driver) {
             return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
         }
 
+        $rides = Ride::where('driver_id', $id)->get();
+        $completedRides = $rides->where('status', 'completed')->count();
+        $cancelledRides = $rides->whereIn('status', ['cancelled', 'cancelled_by_rider', 'cancelled_by_driver'])->count();
+
         return response()->json([
             'success' => true,
-            'data' => new DriverResource($driver),
+            'data' => [
+                'driver' => new DriverResource($driver),
+                'performance' => [
+                    'total_rides' => (int) $driver->total_rides,
+                    'completed_rides' => $completedRides,
+                    'cancelled_rides' => $cancelledRides,
+                    'completion_rate' => (float) $driver->completion_rate,
+                    'average_rating' => (float) $driver->average_rating,
+                    'total_earnings' => (float) $driver->total_earnings,
+                ],
+                'total_debt' => (float) $driver->debts()->sum('amount'),
+                'warnings' => $driver->warnings,
+                'penalties' => $driver->penalties,
+                'recent_rides' => \App\Http\Resources\RideResource::collection(
+                    Ride::where('driver_id', $id)
+                        ->with('rider.user', 'vehicle', 'vehicleType')
+                        ->latest()
+                        ->take(5)
+                        ->get()
+                ),
+            ],
         ]);
     }
 
@@ -73,7 +104,12 @@ class AdminDriverController extends Controller
 
     public function approve(int $id): JsonResponse
     {
-        Driver::where('id', $id)->update([
+        $driver = Driver::find($id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $driver->update([
             'is_approved' => true,
             'is_verified' => true,
             'status' => 'approved',
@@ -88,7 +124,12 @@ class AdminDriverController extends Controller
 
     public function reject(int $id): JsonResponse
     {
-        Driver::where('id', $id)->update([
+        $driver = Driver::find($id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $driver->update([
             'is_approved' => false,
             'status' => 'rejected',
         ]);
@@ -101,7 +142,12 @@ class AdminDriverController extends Controller
 
     public function suspend(int $id): JsonResponse
     {
-        Driver::where('id', $id)->update([
+        $driver = Driver::find($id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $driver->update([
             'is_active' => false,
             'status' => 'suspended',
         ]);
@@ -114,7 +160,12 @@ class AdminDriverController extends Controller
 
     public function reactivate(int $id): JsonResponse
     {
-        Driver::where('id', $id)->update([
+        $driver = Driver::find($id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $driver->update([
             'is_active' => true,
             'status' => 'approved',
         ]);
@@ -221,7 +272,7 @@ class AdminDriverController extends Controller
             'success' => true,
             'data' => \App\Http\Resources\RideResource::collection(
                 Ride::where('driver_id', $id)
-                    ->with('rider', 'vehicleType', 'payment')
+                    ->with('rider', 'driver.user', 'vehicle', 'vehicleType', 'payment')
                     ->latest()
                     ->paginate(20)
             ),
@@ -234,7 +285,7 @@ class AdminDriverController extends Controller
             'success' => true,
             'data' => \App\Http\Resources\PaymentResource::collection(
                 \App\Models\Payment::whereHas('ride', fn($q) => $q->where('driver_id', $id))
-                    ->with('ride.rider')
+                    ->with('ride.rider', 'ride.driver.user')
                     ->latest()
                     ->paginate(20)
             ),

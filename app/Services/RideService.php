@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Models\Ride;
+use App\Models\RideDriverOffer;
 use App\Models\RideStatusHistory;
 use App\Models\Notification;
 use App\Enums\RideStatus;
+use App\Repositories\DriverRepository;
 use App\Repositories\RideRepository;
+use Illuminate\Support\Facades\Log;
 
 class RideService
 {
@@ -15,6 +18,7 @@ class RideService
         private FareCalculationService $fareCalc,
         private PaymentService $paymentService,
         private DriverMatchingService $matchingService,
+        private DriverRepository $driverRepo,
     ) {}
 
     public function createRide(array $data): Ride
@@ -30,6 +34,62 @@ class RideService
         $this->matchingService->findAndNotifyDrivers($ride);
 
         return $ride->fresh();
+    }
+
+    public function processDriverOffers(Ride $ride): void
+    {
+        if ($ride->status !== RideStatus::SearchingDriver) {
+            return;
+        }
+
+        $latestOffer = RideDriverOffer::where('ride_id', $ride->id)
+            ->where('status', 'pending')
+            ->latest()
+            ->first();
+
+        if ($latestOffer) {
+            $offerAge = now()->diffInSeconds($latestOffer->created_at);
+            if ($offerAge < 60) {
+                return;
+            }
+            $latestOffer->update(['status' => 'expired']);
+            Log::info('Offer expired for driver', [
+                'ride_id' => $ride->id,
+                'driver_id' => $latestOffer->driver_id,
+            ]);
+        }
+
+        if (!RideDriverOffer::where('ride_id', $ride->id)->where('status', 'pending')->exists()) {
+            $this->assignToNextDriver($ride);
+        }
+    }
+
+    private function assignToNextDriver(Ride $ride): void
+    {
+        $eligibleDrivers = $this->driverRepo->findEligibleForRide(
+            $ride->pickup_latitude,
+            $ride->pickup_longitude,
+            $ride->vehicle_type_id,
+            $ride->id,
+        );
+
+        if ($eligibleDrivers->isEmpty()) {
+            Log::info('No eligible drivers for ride', ['ride_id' => $ride->id]);
+            return;
+        }
+
+        $nearest = $eligibleDrivers->first();
+
+        RideDriverOffer::create([
+            'ride_id' => $ride->id,
+            'driver_id' => $nearest->id,
+            'status' => 'pending',
+        ]);
+
+        Log::info('Offer reassigned to next driver', [
+            'ride_id' => $ride->id,
+            'driver_id' => $nearest->id,
+        ]);
     }
 
     public function driverArrived(int $rideId): Ride
