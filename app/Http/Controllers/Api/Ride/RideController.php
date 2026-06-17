@@ -36,11 +36,22 @@ class RideController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $rides = $this->rideRepo->findByRider($request->user()->id);
+        $paginator = \App\Models\Ride::where('rider_id', $request->user()->id)
+            ->with('driver.user', 'vehicleType', 'payment')
+            ->latest()
+            ->paginate(20);
 
         return response()->json([
             'success' => true,
-            'data' => RideBriefResource::collection($rides),
+            'data' => [
+                'data' => RideBriefResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 

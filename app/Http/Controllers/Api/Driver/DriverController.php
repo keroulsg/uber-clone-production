@@ -84,14 +84,45 @@ class DriverController extends Controller
             return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
         }
 
-        $totalEarnings = \App\Models\Payment::whereHas('ride', fn($q) => $q->where('driver_id', $driver->id))
-            ->sum('driver_amount');
+        $allPayments = \App\Models\Payment::whereHas('ride', fn($q) => $q->where('driver_id', $driver->id));
+        $totalEarnings = (float) $allPayments->sum('driver_amount');
+
+        $now = now();
+        $todayEarnings = (float) (clone $allPayments)->whereDate('paid_at', $now->toDateString())->sum('driver_amount');
+        $weekEarnings = (float) (clone $allPayments)->whereBetween('paid_at', [$now->startOfWeek()->toDateString(), $now->endOfWeek()->toDateString()])->sum('driver_amount');
+        $monthEarnings = (float) (clone $allPayments)->whereMonth('paid_at', $now->month)->whereYear('paid_at', $now->year)->sum('driver_amount');
+
+        $recentTransactions = $allPayments->latest()->take(10)->get()->map(fn($p) => [
+            'id' => (string) $p->id,
+            'amount' => (float) $p->driver_amount,
+            'type' => 'earning',
+            'description' => 'Ride payment #' . ($p->ride_id ?? ''),
+            'status' => $p->status->value,
+            'createdAt' => $p->paid_at?->toISOString(),
+        ]);
+
+        $chartData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = $now->copy()->subDays($i);
+            $dayEarnings = (float) (clone $allPayments)->whereDate('paid_at', $date->toDateString())->sum('driver_amount');
+            $chartData[] = ['date' => $date->format('Y-m-d'), 'earnings' => $dayEarnings];
+        }
 
         return response()->json([
             'success' => true,
             'data' => [
-                'total_earnings' => (float) $totalEarnings,
-                'current_balance' => (float) $driver->current_balance,
+                'today' => $todayEarnings,
+                'weekly' => $weekEarnings,
+                'monthly' => $monthEarnings,
+                'total' => $totalEarnings,
+                'currentBalance' => (float) $driver->current_balance,
+                'breakdown' => [
+                    'baseFare' => $totalEarnings,
+                    'tips' => 0,
+                    'bonuses' => 0,
+                ],
+                'chartData' => $chartData,
+                'recentTransactions' => $recentTransactions,
             ],
         ]);
     }

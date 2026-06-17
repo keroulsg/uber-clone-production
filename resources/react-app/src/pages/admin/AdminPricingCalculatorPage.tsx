@@ -50,7 +50,22 @@ export default function AdminPricingCalculatorPage() {
         duration: durationMin,
       },
       {
-        onSuccess: (res: any) => setResult((res?.data ?? res) as FareResult),
+        onSuccess: (res: any) => {
+          const b = res?.data?.breakdown ?? res?.breakdown ?? {}
+          setResult({
+            base_fare: parseFloat(b.base_fare ?? b.base ?? 0),
+            fuel_cost: parseFloat(b.fuel_cost ?? 0),
+            distance_fare: parseFloat(b.distance_fare ?? b.distance ?? 0),
+            time_fare: parseFloat(b.time_fare ?? b.time ?? 0),
+            vehicle_multiplier: parseFloat(b.class_multiplier ?? 1),
+            subtotal: parseFloat(b.subtotal ?? 0),
+            surge_multiplier: parseFloat(b.surge_multiplier ?? 1),
+            surge_amount: parseFloat(b.surge_amount ?? 0),
+            total_fare: parseFloat(b.total_fare ?? b.fare ?? 0),
+            company_commission: parseFloat(b.company_commission ?? 0),
+            driver_amount: parseFloat(b.driver_amount ?? 0),
+          })
+        },
         onError: () => setResult(null),
       },
     )

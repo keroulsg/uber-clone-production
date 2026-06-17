@@ -22,11 +22,21 @@ class TicketController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tickets = $this->ticketRepo->findByUser($request->user()->id);
+        $paginator = Ticket::where('user_id', $request->user()->id)
+            ->latest()
+            ->paginate(20);
 
         return response()->json([
             'success' => true,
-            'data' => TicketResource::collection($tickets),
+            'data' => [
+                'data' => TicketResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 

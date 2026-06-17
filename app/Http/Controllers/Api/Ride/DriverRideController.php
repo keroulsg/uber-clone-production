@@ -318,11 +318,22 @@ class DriverRideController extends Controller
             return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
         }
 
-        $rides = $this->rideRepo->findByDriver($driver->id);
+        $paginator = \App\Models\Ride::where('driver_id', $driver->id)
+            ->with('rider', 'vehicleType', 'payment')
+            ->latest()
+            ->paginate(20);
 
         return response()->json([
             'success' => true,
-            'data' => \App\Http\Resources\RideBriefResource::collection($rides),
+            'data' => [
+                'data' => \App\Http\Resources\RideBriefResource::collection($paginator->items()),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
         ]);
     }
 }
