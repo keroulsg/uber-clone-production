@@ -127,10 +127,9 @@ class FinanceTest extends TestCase
         $this->assertEquals(200.00 - $expectedTotalFare, (float) $riderWallet->balance);
         $this->assertEquals(50.00 + $expectedDriverAmount, (float) $driverWallet->balance);
 
-        $this->assertDatabaseHas('driver_debts', [
+        $this->assertDatabaseMissing('driver_debts', [
             'ride_id' => $ride->id,
             'type' => 'commission',
-            'amount' => $expectedCommission,
         ]);
     }
 
@@ -222,7 +221,7 @@ class FinanceTest extends TestCase
         $this->assertEquals(5.00, $this->fareCalc->calculateWaitingFee(15));
     }
 
-    public function test_wallet_ride_commission_in_wallet_and_debt_match(): void
+    public function test_wallet_ride_does_not_create_commission_debt(): void
     {
         $ride = $this->createRideThroughFlow(10, 15, 'wallet');
 
@@ -233,9 +232,7 @@ class FinanceTest extends TestCase
 
         $debt = \App\Models\DriverDebt::where('ride_id', $ride->id)->where('type', 'commission')->first();
 
-        $this->assertNotNull($debt);
-        $this->assertEquals($payment->platform_fee, $debt->amount);
-        $this->assertEquals($payment->company_commission, $debt->amount);
+        $this->assertNull($debt, 'Wallet ride must not create commission debt');
     }
 
     public function test_estimated_fare_breakdown_structure(): void

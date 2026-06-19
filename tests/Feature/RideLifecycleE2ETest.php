@@ -173,8 +173,8 @@ class RideLifecycleE2ETest extends TestCase
         $expectedDriverEarning = round($ride->actual_fare - ($ride->actual_fare * 0.10), 2);
         $this->assertEqualsWithDelta(50.00 + $expectedDriverEarning, (float) $driverWallet->balance, 0.01);
 
-        // 11. Debt created for commission
-        $this->assertDatabaseHas('driver_debts', [
+        // 11. No debt created for wallet ride (commission collected upfront)
+        $this->assertDatabaseMissing('driver_debts', [
             'ride_id' => $rideId,
             'type' => 'commission',
         ]);

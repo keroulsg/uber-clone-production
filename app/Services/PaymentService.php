@@ -158,31 +158,33 @@ class PaymentService
                 }
             }
 
-            DriverDebt::create([
-                'driver_id' => $ride->driver_id,
-                'ride_id' => $ride->id,
-                'type' => 'commission',
-                'amount' => $commission,
-            ]);
-
-            if ($ride->driver) {
-                Notification::create([
-                    'type' => 'commission_debt',
-                    'notifiable_type' => \App\Models\User::class,
-                    'notifiable_id' => $ride->driver->user_id,
-                    'data' => ['ride_id' => $ride->id, 'amount' => $commission, 'message' => 'Commission debt recorded.'],
-                ]);
-
-                LedgerEntry::create([
-                    'user_id' => $ride->driver->user_id,
-                    'type' => 'commission_debt',
+            if ($ride->payment_method === 'cash') {
+                DriverDebt::create([
+                    'driver_id' => $ride->driver_id,
+                    'ride_id' => $ride->id,
+                    'type' => 'commission',
                     'amount' => $commission,
-                    'balance_before' => 0,
-                    'balance_after' => 0,
-                    'reference_type' => Payment::class,
-                    'reference_id' => $payment->id,
-                    'description' => "Commission debt for ride #{$ride->id}",
                 ]);
+
+                if ($ride->driver) {
+                    Notification::create([
+                        'type' => 'commission_debt',
+                        'notifiable_type' => \App\Models\User::class,
+                        'notifiable_id' => $ride->driver->user_id,
+                        'data' => ['ride_id' => $ride->id, 'amount' => $commission, 'message' => 'Commission debt recorded.'],
+                    ]);
+
+                    LedgerEntry::create([
+                        'user_id' => $ride->driver->user_id,
+                        'type' => 'commission_debt',
+                        'amount' => $commission,
+                        'balance_before' => 0,
+                        'balance_after' => 0,
+                        'reference_type' => Payment::class,
+                        'reference_id' => $payment->id,
+                        'description' => "Commission debt for ride #{$ride->id}",
+                    ]);
+                }
             }
 
             $ride->update([
