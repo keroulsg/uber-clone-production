@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Navigation, MapPin, Phone, Star, User, Car,
   ChevronLeft, CheckCircle, Play, ArrowRight,
-  DollarSign, Clock, Route,
+  DollarSign, Clock, Route, Wallet,
 } from 'lucide-react'
 import { useDriverCurrentRide, useArrivedRide, useStartRide, useCompleteRide, useRideSummary } from '@/hooks/useDriverRides'
 import { useUpdateLocation } from '@/hooks/useDrivers'
@@ -14,12 +14,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { RatingStars } from '@/components/common/RatingStars'
 import { RouteMap } from '@/components/common/RouteMap'
 import { LoadingScreen } from '@/components/common/LoadingScreen'
 import { ErrorState } from '@/components/common/ErrorState'
 import { EmptyState } from '@/components/common/EmptyState'
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { useRateRider } from '@/hooks/useRatings'
 
 const steps = [
   { key: 'navigate_to_pickup', label: 'Navigate to Pickup', icon: Navigation },
@@ -42,16 +47,24 @@ export default function DriverCurrentRidePage() {
   const updateLocation = useUpdateLocation()
 
   const [driverPosition, setDriverPosition] = useState<{ lat: number; lng: number } | null>(null)
+  const [walletError, setWalletError] = useState<{ currentBalance: number; requiredAmount: number } | null>(null)
+  const [cashError, setCashError] = useState<string | null>(null)
+  const [cashReceived, setCashReceived] = useState<number | null>(null)
+  const [creditChange, setCreditChange] = useState(false)
   const driverPositionRef = useRef<{ lat: number; lng: number } | null>(null)
   const locationWatchRef = useRef<number | null>(null)
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isCompletingRef = useRef(false)
+  const [rateDialogOpen, setRateDialogOpen] = useState(false)
+  const [ratingValue, setRatingValue] = useState(0)
+  const [ratingComment, setRatingComment] = useState('')
+  const [ratingError, setRatingError] = useState('')
+  const rateRider = useRateRider()
 
-  // Keep ref in sync with state
   useEffect(() => {
     driverPositionRef.current = driverPosition
   }, [driverPosition])
 
-  // Start geolocation watch for navigation and location updates
   useEffect(() => {
     if (!navigator.geolocation) return
 
@@ -66,7 +79,6 @@ export default function DriverCurrentRidePage() {
     )
     locationWatchRef.current = watchId
 
-    // Send location updates every 5 seconds
     locationIntervalRef.current = setInterval(() => {
       const pos = driverPositionRef.current
       if (pos && currentRide) {
@@ -86,7 +98,7 @@ export default function DriverCurrentRidePage() {
         clearInterval(locationIntervalRef.current)
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const [currentStep, setCurrentStep] = useState<StepKey>(() => {
     if (!currentRide) return 'navigate_to_pickup'
@@ -98,9 +110,6 @@ export default function DriverCurrentRidePage() {
       default: return 'navigate_to_pickup'
     }
   })
-
-  const [actualDistance, setActualDistance] = useState(() => currentRide?.estimatedDistance ?? 0)
-  const [actualDuration, setActualDuration] = useState(() => currentRide?.estimatedDuration ?? 0)
 
   const currentStepIndex = steps.findIndex((s) => s.key === currentStep)
 
@@ -123,29 +132,76 @@ export default function DriverCurrentRidePage() {
   const handlePreviewSummary = () => {
     if (currentRide) {
       rideSummary.mutate(
-        { rideId: currentRide.id, actualDistance, actualDuration },
+        { rideId: currentRide.id },
         {
-          onSuccess: () => setCurrentStep('review_summary'),
+          onSuccess: () => {
+            setCurrentStep('review_summary')
+            setWalletError(null)
+            setCashError(null)
+            setCashReceived(null)
+            setCreditChange(false)
+          },
         }
       )
     }
   }
 
   const handleCompleteRide = () => {
-    if (currentRide && rideSummary.data) {
-      completeRide.mutate(
-        {
-          rideId: currentRide.id,
-          data: { actual_distance: actualDistance, actual_duration: actualDuration },
-        },
-        {
-          onSuccess: () => {
-            setCurrentStep('complete')
-            setTimeout(() => navigate('/driver/dashboard'), 2000)
-          },
-        }
-      )
+    if (isCompletingRef.current) return
+    if (!currentRide || !rideSummary.data) return
+    isCompletingRef.current = true
+    setWalletError(null)
+    setCashError(null)
+
+    const data: Record<string, unknown> = {}
+    if (rideSummary.data.payment_method === 'cash' && cashReceived != null) {
+      data.cash_received = cashReceived
+      data.credit_change = creditChange
     }
+
+    completeRide.mutate(
+      { rideId: currentRide.id, data },
+      {
+          onSuccess: (result) => {
+            isCompletingRef.current = false
+            if (result.kind === 'completed') {
+              setCurrentStep('complete')
+            } else if (result.kind === 'insufficient_wallet') {
+            setWalletError({
+              currentBalance: result.currentBalance,
+              requiredAmount: result.requiredAmount,
+            })
+          } else if (result.kind === 'cash_underpaid') {
+            setCashError(
+              `Cash received (${formatCurrency(result.cashReceived)}) is less than total fare (${formatCurrency(result.totalFare)}). Please collect the full fare.`
+            )
+          }
+        },
+        onError: () => {
+          isCompletingRef.current = false
+        },
+      }
+    )
+  }
+
+  const handleRateSubmit = () => {
+    if (ratingValue === 0) {
+      setRatingError('Please select a rating')
+      return
+    }
+    if (!currentRide) return
+    rateRider.mutate(
+      { ride_id: currentRide.id, rating: ratingValue, comment: ratingComment },
+      {
+        onSuccess: () => {
+          setRateDialogOpen(false)
+          setRatingValue(0)
+          setRatingComment('')
+          setRatingError('')
+          refetch()
+        },
+      }
+    )
   }
 
   if (isLoading) return <LoadingScreen />
@@ -176,10 +232,12 @@ export default function DriverCurrentRidePage() {
   }
 
   const summary = rideSummary.data?.fare_breakdown
+  const isCash = rideSummary.data?.payment_method === 'cash'
+  const totalFare = summary?.total_fare ?? 0
+  const changeDue = cashReceived != null ? Math.max(0, cashReceived - totalFare) : 0
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ChevronLeft className="h-5 w-5" />
@@ -195,7 +253,6 @@ export default function DriverCurrentRidePage() {
         </div>
       </div>
 
-      {/* Step Indicator */}
       <div className="flex items-center justify-between">
         {steps.map((step, index) => {
           const StepIcon = step.icon
@@ -229,7 +286,6 @@ export default function DriverCurrentRidePage() {
         })}
       </div>
 
-      {/* Map (hide on summary/review step) */}
       {currentStep !== 'review_summary' && currentStep !== 'complete' && (
         <RouteMap
           pickupLat={currentRide.pickup?.lat}
@@ -242,7 +298,6 @@ export default function DriverCurrentRidePage() {
         />
       )}
 
-      {/* Rider Info */}
       {currentStep !== 'review_summary' && currentStep !== 'complete' && (
         <Card>
           <CardContent className="p-5">
@@ -271,7 +326,6 @@ export default function DriverCurrentRidePage() {
         </Card>
       )}
 
-      {/* Trip Info */}
       {currentStep !== 'review_summary' && currentStep !== 'complete' && (
         <Card>
           <CardContent className="p-5 space-y-4">
@@ -344,11 +398,17 @@ export default function DriverCurrentRidePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {currentRide.paymentMethod === 'wallet' && currentStep === 'navigate_to_destination' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+                Payment method is <strong>Wallet</strong>. Ensure the rider has sufficient balance before completing.
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Review Summary */}
+      {/* Review Summary — READONLY financials + Cash handling */}
       {currentStep === 'review_summary' && summary && (
         <Card className="border-2 border-primary">
           <CardHeader>
@@ -358,26 +418,14 @@ export default function DriverCurrentRidePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="actual-distance">Actual Distance (km)</Label>
-                <Input
-                  id="actual-distance"
-                  type="number"
-                  step="0.1"
-                  value={actualDistance}
-                  onChange={(e) => setActualDistance(Number(e.target.value))}
-                />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg bg-muted">
+                <p className="text-xs text-muted-foreground">Distance</p>
+                <p className="font-semibold">{formatDistance(rideSummary.data?.actual_distance ?? 0)}</p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="actual-duration">Actual Duration (min)</Label>
-                <Input
-                  id="actual-duration"
-                  type="number"
-                  step="1"
-                  value={actualDuration}
-                  onChange={(e) => setActualDuration(Number(e.target.value))}
-                />
+              <div className="p-3 rounded-lg bg-muted">
+                <p className="text-xs text-muted-foreground">Duration</p>
+                <p className="font-semibold">{formatDuration(rideSummary.data?.actual_duration ?? 0)}</p>
               </div>
             </div>
 
@@ -444,13 +492,92 @@ export default function DriverCurrentRidePage() {
             )}
 
             <div className="text-xs text-muted-foreground">
-              Payment method: {rideSummary.data?.payment_method === 'cash' ? 'Cash (paid to you)' : rideSummary.data?.payment_method === 'wallet' ? 'Wallet' : rideSummary.data?.payment_method}
+              Payment method: {isCash ? 'Cash (paid to you)' : 'Wallet'}
             </div>
+
+            {/* Cash collection UI */}
+            {isCash && (
+              <div className="space-y-3 rounded-lg border p-4">
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Wallet className="h-4 w-4" />
+                  Cash Collection
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="cash-received">Cash Received from Rider</Label>
+                  <Input
+                    id="cash-received"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="Enter cash amount received"
+                    value={cashReceived ?? ''}
+                    onChange={(e) => setCashReceived(e.target.value ? Number(e.target.value) : null)}
+                  />
+                </div>
+                {cashReceived != null && cashReceived > 0 && (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total fare</span>
+                      <span>{formatCurrency(totalFare)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cash received</span>
+                      <span>{formatCurrency(cashReceived)}</span>
+                    </div>
+                    {changeDue > 0 && (
+                      <>
+                        <div className="flex justify-between text-amber-600 font-medium">
+                          <span>Change due</span>
+                          <span>{formatCurrency(changeDue)}</span>
+                        </div>
+                        <div className="flex items-start gap-2 pt-1">
+                          <input
+                            type="checkbox"
+                            id="credit-change"
+                            checked={creditChange}
+                            onChange={(e) => setCreditChange(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <label htmlFor="credit-change" className="text-xs text-muted-foreground">
+                            I cannot return {formatCurrency(changeDue)} change. Credit this amount to rider wallet.
+                            (This creates a {formatCurrency(changeDue)} debt/liability on your account.)
+                          </label>
+                        </div>
+                      </>
+                    )}
+                    {changeDue === 0 && (
+                      <div className="text-xs text-emerald-600">
+                        Exact payment — no change needed.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {walletError && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                <p className="text-sm font-semibold text-amber-800">Insufficient Wallet Balance</p>
+                <div className="text-xs text-amber-700 space-y-1">
+                  <p>Wallet balance: <strong>{formatCurrency(walletError.currentBalance)}</strong></p>
+                  <p>Total fare: <strong>{formatCurrency(walletError.requiredAmount)}</strong></p>
+                  <p>Shortfall: <strong>{formatCurrency(walletError.requiredAmount - walletError.currentBalance)}</strong></p>
+                </div>
+                <p className="text-xs text-amber-700">
+                  The rider must top up their wallet. Ride remains active — retry after top-up.
+                </p>
+              </div>
+            )}
+
+            {cashError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">
+                {cashError}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Action Button */}
       <div className="sticky bottom-0 bg-background pb-4 pt-2 border-t">
         {currentStep === 'navigate_to_pickup' && (
           <Button size="lg" className="w-full gap-2" onClick={handleArrived} disabled={arrivedRide.isPending}>
@@ -484,7 +611,7 @@ export default function DriverCurrentRidePage() {
               size="lg"
               className="flex-1 gap-2"
               onClick={handleCompleteRide}
-              disabled={completeRide.isPending}
+              disabled={completeRide.isPending || isCompletingRef.current}
             >
               <CheckCircle className="h-5 w-5" />
               {completeRide.isPending ? 'Completing...' : 'Confirm & Complete'}
@@ -492,12 +619,51 @@ export default function DriverCurrentRidePage() {
           </div>
         )}
         {currentStep === 'complete' && (
-          <div className="flex items-center justify-center gap-2 py-3 text-emerald-600 font-semibold">
-            <CheckCircle className="h-6 w-6" />
-            Ride Completed Successfully
+          <div className="space-y-3">
+            <div className="flex items-center justify-center gap-2 py-3 text-emerald-600 font-semibold">
+              <CheckCircle className="h-6 w-6" />
+              Ride Completed Successfully
+            </div>
+            {currentRide && !currentRide.riderRated && (
+              <Button variant="outline" className="w-full gap-2" onClick={() => setRateDialogOpen(true)}>
+                <Star className="h-4 w-4" />
+                Rate Rider
+              </Button>
+            )}
+            <Button className="w-full" variant="default" onClick={() => navigate('/driver/dashboard')}>
+              Go to Dashboard
+            </Button>
           </div>
         )}
       </div>
+
+      <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-center">Rate {currentRide?.rider?.name ?? 'Rider'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-center">
+              <RatingStars
+                rating={ratingValue}
+                size="lg"
+                interactive
+                onChange={(value) => { setRatingValue(value); setRatingError('') }}
+              />
+            </div>
+            <Input
+              placeholder="Leave a comment (optional)"
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              maxLength={500}
+            />
+            {ratingError && <p className="text-sm text-destructive text-center">{ratingError}</p>}
+            <Button className="w-full" onClick={handleRateSubmit} disabled={ratingValue === 0 || rateRider.isPending}>
+              {rateRider.isPending ? 'Submitting...' : 'Submit Rating'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

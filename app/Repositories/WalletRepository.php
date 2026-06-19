@@ -28,6 +28,12 @@ class WalletRepository
         ]);
     }
 
+    public function getBalance(int $userId): float
+    {
+        $wallet = $this->findByUser($userId);
+        return $wallet ? (float) $wallet->balance : 0;
+    }
+
     public function deductBalance(int $userId, float $amount): bool
     {
         $wallet = $this->findByUser($userId);

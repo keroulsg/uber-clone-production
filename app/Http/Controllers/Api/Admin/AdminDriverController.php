@@ -4,11 +4,16 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DriverResource;
+use App\Http\Resources\RideResource;
 use App\Models\Driver;
 use App\Models\DriverWarning;
 use App\Models\DriverPenalty;
 use App\Models\BanHistory;
 use App\Models\Ride;
+use App\Models\Payment;
+use App\Enums\PaymentStatus;
+use App\Enums\RideStatus;
+use App\Models\DriverDebt;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,16 +21,35 @@ class AdminDriverController extends Controller
 {
     public function index(): JsonResponse
     {
-        $paginator = Driver::with('user', 'vehicles.vehicleType')->latest()->paginate(20);
+        $paginator = Driver::with('user', 'vehicles.vehicleType', 'debts')->latest()->paginate(20);
+        $drivers = $paginator->items();
+        $now = now();
+
+        $driverData = array_map(fn($d) => [
+            'driver' => new DriverResource($d),
+            'outstanding_debt' => (float) $d->debts->whereNull('paid_at')->sum('amount'),
+            'unpaid_commission' => (float) $d->debts->whereNull('paid_at')->where('type', 'commission')->sum('amount'),
+            'cash_change_liability' => (float) $d->debts->whereNull('paid_at')->where('type', 'cash_change_liability')->sum('amount'),
+            'total_rides' => (int) Ride::where('driver_id', $d->id)->count(),
+            'completed_rides' => (int) Ride::where('driver_id', $d->id)->where('status', RideStatus::RideCompleted)->count(),
+            'today_completed_rides' => (int) Ride::where('driver_id', $d->id)->where('status', RideStatus::RideCompleted)->whereDate('completed_at', $now->toDateString())->count(),
+            'today_earnings' => (float) Payment::whereHas('ride', fn($q) => $q->where('driver_id', $d->id))->where('status', PaymentStatus::Completed)->whereDate('paid_at', $now->toDateString())->sum('driver_amount'),
+            'total_earnings' => (float) Payment::whereHas('ride', fn($q) => $q->where('driver_id', $d->id))->where('status', PaymentStatus::Completed)->sum('driver_amount'),
+            'cash_collected' => (float) Payment::whereHas('ride', fn($q) => $q->where('driver_id', $d->id))->where('status', PaymentStatus::Completed)->where('payment_method', 'cash')->sum('amount'),
+            'wallet_earnings' => (float) Payment::whereHas('ride', fn($q) => $q->where('driver_id', $d->id))->where('status', PaymentStatus::Completed)->where('payment_method', 'wallet')->sum('driver_amount'),
+        ], $drivers);
+
         return response()->json([
             'success' => true,
             'data' => [
-                'data' => DriverResource::collection($paginator->items()),
+                'data' => $driverData,
                 'meta' => [
-                    'current_page' => $paginator->currentPage(),
-                    'last_page' => $paginator->lastPage(),
-                    'per_page' => $paginator->perPage(),
+                    'currentPage' => $paginator->currentPage(),
+                    'lastPage' => $paginator->lastPage(),
+                    'perPage' => $paginator->perPage(),
                     'total' => $paginator->total(),
+                    'from' => $paginator->firstItem() ?? 0,
+                    'to' => $paginator->lastItem() ?? 0,
                 ],
             ],
         ]);
@@ -54,28 +78,88 @@ class AdminDriverController extends Controller
             return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
         }
 
+        $now = now();
+        $allCompletedPayments = Payment::whereHas('ride', fn($q) => $q->where('driver_id', $id))
+            ->where('status', PaymentStatus::Completed);
+
+        $totalEarnings = (float) (clone $allCompletedPayments)->sum('driver_amount');
+        $todayEarnings = (float) (clone $allCompletedPayments)->whereDate('paid_at', $now->toDateString())->sum('driver_amount');
+        $weekEarnings = (float) (clone $allCompletedPayments)->whereBetween('paid_at', [$now->startOfWeek()->toDateString(), $now->endOfWeek()->toDateString()])->sum('driver_amount');
+        $monthEarnings = (float) (clone $allCompletedPayments)->whereMonth('paid_at', $now->month)->whereYear('paid_at', $now->year)->sum('driver_amount');
+        $totalCashCollected = (float) (clone $allCompletedPayments)->where('payment_method', 'cash')->sum('amount');
+        $walletRevenue = (float) (clone $allCompletedPayments)->where('payment_method', 'wallet')->sum('driver_amount');
+        $cashRidesCount = (int) (clone $allCompletedPayments)->where('payment_method', 'cash')->count();
+        $walletRidesCount = (int) (clone $allCompletedPayments)->where('payment_method', 'wallet')->count();
+
         $rides = Ride::where('driver_id', $id)->get();
-        $completedRides = $rides->where('status', 'completed')->count();
-        $cancelledRides = $rides->whereIn('status', ['cancelled', 'cancelled_by_rider', 'cancelled_by_driver'])->count();
+        $completedRides = $rides->where('status', RideStatus::RideCompleted->value)->count();
+        $todayCompletedRides = Ride::where('driver_id', $id)->where('status', RideStatus::RideCompleted)->whereDate('completed_at', $now->toDateString())->count();
+        $cancelledRides = $rides->whereIn('status', [
+            RideStatus::Cancelled->value,
+            RideStatus::CancelledByRider->value,
+            RideStatus::CancelledByDriver->value,
+        ])->count();
+
+        $unpaidDebts = $driver->debts()->whereNull('paid_at');
+        $totalDebt = (float) (clone $unpaidDebts)->sum('amount');
+        $unpaidCommission = (float) (clone $unpaidDebts)->where('type', 'commission')->sum('amount');
+        $cashChangeLiability = (float) (clone $unpaidDebts)->where('type', 'cash_change_liability')->sum('amount');
+        $todayCommissionDue = (float) (clone $unpaidDebts)->where('type', 'commission')->whereDate('created_at', $now->toDateString())->sum('amount');
+        $weekCommissionDue = (float) (clone $unpaidDebts)->where('type', 'commission')->whereBetween('created_at', [$now->startOfWeek()->toDateString(), $now->endOfWeek()->toDateString()])->sum('amount');
+        $lastDebtAt = $unpaidDebts->latest()->first()?->created_at?->toISOString();
+
+        $recentFinanceRows = Payment::whereHas('ride', fn($q) => $q->where('driver_id', $id))
+            ->with('ride')
+            ->where('status', PaymentStatus::Completed)
+            ->latest()
+            ->take(10)
+            ->get()
+            ->map(fn($p) => [
+                'payment_id' => (string) $p->id,
+                'booking_id' => $p->ride?->booking_id ?? 'RIDE-' . str_pad((string) $p->ride_id, 6, '0', STR_PAD_LEFT),
+                'date' => $p->paid_at?->toISOString(),
+                'payment_method' => $p->payment_method,
+                'total_fare' => (float) $p->amount,
+                'commission' => (float) $p->company_commission,
+                'driver_payout' => (float) $p->driver_amount,
+                'has_debt' => DriverDebt::where('ride_id', $p->ride_id)->where('driver_id', $id)->exists(),
+                'debt_status' => DriverDebt::where('ride_id', $p->ride_id)->where('driver_id', $id)->value('paid_at') ? 'paid' : 'unpaid',
+            ]);
 
         return response()->json([
             'success' => true,
             'data' => [
                 'driver' => new DriverResource($driver),
                 'performance' => [
-                    'total_rides' => (int) $driver->total_rides,
+                    'total_rides' => $rides->count(),
                     'completed_rides' => $completedRides,
+                    'today_completed_rides' => $todayCompletedRides,
                     'cancelled_rides' => $cancelledRides,
-                    'completion_rate' => (float) $driver->completion_rate,
+                    'completion_rate' => $rides->count() > 0 ? round(($completedRides / $rides->count()) * 100, 1) : 0,
                     'average_rating' => (float) $driver->average_rating,
-                    'total_earnings' => (float) $driver->total_earnings,
+                    'total_earnings' => $totalEarnings,
+                    'today_earnings' => $todayEarnings,
+                    'weekly_earnings' => $weekEarnings,
+                    'monthly_earnings' => $monthEarnings,
+                    'total_cash_collected' => $totalCashCollected,
+                    'wallet_revenue' => $walletRevenue,
+                    'cash_rides_count' => $cashRidesCount,
+                    'wallet_rides_count' => $walletRidesCount,
                 ],
-                'total_debt' => (float) $driver->debts()->sum('amount'),
-                'warnings' => $driver->warnings,
-                'penalties' => $driver->penalties,
-                'recent_rides' => \App\Http\Resources\RideResource::collection(
+                'company_dues' => [
+                    'total_debt' => $totalDebt,
+                    'unpaid_commission' => $unpaidCommission,
+                    'cash_change_liability' => $cashChangeLiability,
+                    'today_commission_due' => $todayCommissionDue,
+                    'weekly_commission_due' => $weekCommissionDue,
+                    'last_debt_created_at' => $lastDebtAt,
+                ],
+                'recent_finance_rows' => $recentFinanceRows,
+                'warnings' => $driver->warnings ?? [],
+                'penalties' => $driver->penalties ?? [],
+                'recent_rides' => RideResource::collection(
                     Ride::where('driver_id', $id)
-                        ->with('rider.user', 'vehicle', 'vehicleType')
+                        ->with('rider', 'driver.user', 'vehicle', 'vehicleType', 'payment')
                         ->latest()
                         ->take(5)
                         ->get()

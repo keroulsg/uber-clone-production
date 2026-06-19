@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
-import { echo } from '@/lib/echo'
+import { useEffect, useRef } from 'react'
+import { getEcho } from '@/lib/echo'
 
 export interface IncomingRideRequest {
   ride_id: number
@@ -20,16 +20,19 @@ export function useDriverBroadcast(
   handlerRef.current = onRideRequested
 
   useEffect(() => {
-    if (!driverId || !echo) return
+    const e = getEcho()
+    if (!driverId || !e) return
 
-    const channel = echo.private(`driver.${driverId}`)
+    const channel = e.private(`driver.${driverId}`)
 
-    channel.listen('.ride.requested', (data: unknown) => {
+    const handler = (data: unknown) => {
       handlerRef.current?.(data as IncomingRideRequest)
-    })
+    }
+    channel.listen('.ride.requested', handler)
 
     return () => {
-      try { echo?.leave(`driver.${driverId}`) } catch { /* ok */ }
+      try { channel.stopListening('.ride.requested', handler) } catch { /* ok */ }
+      try { e.leave(`driver.${driverId}`) } catch { /* ok */ }
     }
   }, [driverId])
 }
@@ -45,9 +48,10 @@ export function useDriverRideChannel(
   eventsRef.current = events
 
   useEffect(() => {
-    if (!rideId || !echo) return
+    const e = getEcho()
+    if (!rideId || !e) return
 
-    const channel = echo.private(`ride.${rideId}`)
+    const channel = e.private(`ride.${rideId}`)
 
     const cleanups: (() => void)[] = []
 
@@ -65,7 +69,7 @@ export function useDriverRideChannel(
 
     return () => {
       cleanups.forEach((fn) => fn())
-      try { echo?.leave(`ride.${rideId}`) } catch { /* ok */ }
+      try { e.leave(`ride.${rideId}`) } catch { /* ok */ }
     }
   }, [rideId])
 }

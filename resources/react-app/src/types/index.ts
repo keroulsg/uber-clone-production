@@ -202,12 +202,28 @@ export interface Ride {
 export interface RideBrief {
   id: string
   bookingId: string
-  pickup: { address: string; lat?: number; lng?: number }
-  destination: { address: string; lat?: number; lng?: number }
+  rider?: UserBrief
+  driver?: DriverBrief
+  vehicle?: VehicleBrief
+  vehicleType?: VehicleType
+  pickup: { address: string; lat: number; lng: number }
+  destination: { address: string; lat: number; lng: number }
   status: RideStatus
+  estimatedDistance?: number
+  estimatedDuration?: number
   estimatedFare: number
+  actualDistance?: number
+  actualDuration?: number
   actualFare?: number
+  paymentMethod?: string
+  paymentStatus?: string
+  driverRated: boolean
+  riderRated: boolean
   createdAt: string
+  completedAt?: string
+  cancelledAt?: string
+  cancelledBy?: string
+  cancellationReason?: string
 }
 
 export interface Payment {
@@ -290,8 +306,8 @@ export interface Ticket {
 export interface Notification {
   id: string
   type: string
-  title?: string
-  message?: string
+  title: string
+  message: string
   data: any
   readAt?: string
   createdAt: string

@@ -71,11 +71,14 @@ export function useCurrentRide() {
     queryKey: ['rides', 'current'],
     queryFn: async () => {
       const res = await ridesApi.getCurrentRide()
-      if (res.data) setCurrentRide(res.data as Ride)
-      else clearCurrentRide()
-      return res.data as Ride | null
+      if (res.data) {
+        setCurrentRide(res.data as Ride)
+        return res.data as Ride | null
+      }
+      return null
     },
     enabled: !!token,
-    refetchInterval: 10000,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: true,
   })
 }

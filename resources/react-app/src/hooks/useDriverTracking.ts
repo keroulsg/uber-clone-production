@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 import { MapService } from '@/maps/MapService'
 import { useDriverLocationChannel } from '@/hooks/useRideBroadcast'
+import { apiClient } from '@/api/client'
 import type { LatLng } from '@/maps/types'
 
 interface TrackingState {
@@ -98,35 +99,29 @@ export function useDriverTracking(options: UseDriverTrackingOptions = {}) {
   const fetchLocation = useCallback(async () => {
     if (!driverId) return
     try {
-      const url = `/api/v1/rides/track-driver/${driverId}`
-      const res = await fetch(url, {
-        headers: { Accept: 'application/json' },
-      })
-      if (!res.ok) {
-        if (res.status === 404) {
-          setState((s) => ({ ...s, isMoving: false }))
-          return
-        }
-        throw new Error(`HTTP ${res.status}`)
-      }
-
-      const body = await res.json()
+      const res = await apiClient.get(`/rides/track-driver/${driverId}`)
+      const body = res.data
       const pos = body?.data ?? body
 
       if (isValidLatLng(pos)) {
         updatePosition({ lat: pos.latitude ?? pos.lat, lng: pos.longitude ?? pos.lng })
       }
-    } catch (err) {
-      const msg = String(err)
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        setState((s) => ({ ...s, isMoving: false }))
+        return
+      }
+      const msg = err?.message ?? String(err)
       setState((s) => ({ ...s, error: msg, isMoving: false }))
       onError?.(msg)
     }
   }, [driverId, updatePosition, onError])
 
   const startTracking = useCallback(() => {
+    if (!driverId) return
     pollRef.current = setInterval(fetchLocation, pollInterval)
     fetchLocation()
-  }, [fetchLocation, pollInterval])
+  }, [fetchLocation, pollInterval, driverId])
 
   const stopTracking = useCallback(() => {
     if (pollRef.current) {

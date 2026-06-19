@@ -29,6 +29,13 @@ export default function DriverEarningsPage() {
     weekly: number
     monthly: number
     total: number
+    cashCollected: number
+    walletEarnings: number
+    currentBalance: number
+    outstandingDebt: number
+    outstandingCommission: number
+    cashChangeLiability: number
+    todayCommission: number
     chartData: { label: string; amount: number }[]
     recentTransactions: Transaction[]
     breakdown: { baseFare: number; tips: number; bonuses: number }
@@ -76,6 +83,72 @@ export default function DriverEarningsPage() {
           variant="yellow"
         />
       </div>
+
+      {/* Earnings Breakdown Summary */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Earnings Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Cash Collected</p>
+              <p className="font-semibold">{formatCurrency(earningsData?.cashCollected ?? 0)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Wallet Earnings</p>
+              <p className="font-semibold">{formatCurrency(earningsData?.walletEarnings ?? 0)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Current Balance</p>
+              <p className="font-semibold">{formatCurrency(earningsData?.currentBalance ?? 0)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Earnings</p>
+              <p className="font-semibold">{formatCurrency(earningsData?.total ?? 0)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Company Dues */}
+      {earningsData && earningsData.outstandingDebt > 0 && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-amber-600" />
+              Company Dues
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Outstanding Debt</span>
+                <span className="font-semibold text-amber-700">{formatCurrency(earningsData.outstandingDebt)}</span>
+              </div>
+              {earningsData.outstandingCommission > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Unpaid Commission</span>
+                  <span className="font-medium">{formatCurrency(earningsData.outstandingCommission)}</span>
+                </div>
+              )}
+              {earningsData.cashChangeLiability > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cash Change Liability</span>
+                  <span className="font-medium">{formatCurrency(earningsData.cashChangeLiability)}</span>
+                </div>
+              )}
+              {earningsData.todayCommission > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Today's Commission Due</span>
+                  <span className="font-medium">{formatCurrency(earningsData.todayCommission)}</span>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">Outstanding dues to be settled with the company</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Earnings Chart */}
       <Card>

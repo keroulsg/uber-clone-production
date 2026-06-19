@@ -11,7 +11,8 @@ export function usePendingRides() {
     queryKey: ['driver-rides', 'pending'],
     queryFn: () => driverRidesApi.getPendingRides(),
     enabled: !!token,
-    refetchInterval: 15000,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
   })
 }
 
@@ -58,20 +59,51 @@ export function useStartRide() {
   })
 }
 
+export type CompleteResult =
+  | { kind: 'completed' }
+  | { kind: 'insufficient_wallet'; currentBalance: number; requiredAmount: number }
+  | { kind: 'cash_underpaid'; totalFare: number; cashReceived: number }
+
 export function useCompleteRide() {
   const queryClient = useQueryClient()
   const clearCurrentRide = useRideStore((s) => s.clearCurrentRide)
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       rideId,
       data,
     }: {
       rideId: string
       data: Record<string, unknown>
-    }) => driverRidesApi.completeRide(rideId, data),
-    onSuccess: () => {
-      clearCurrentRide()
-      queryClient.invalidateQueries({ queryKey: ['driver-rides'] })
+    }): Promise<CompleteResult> => {
+      try {
+        await driverRidesApi.completeRide(rideId, data)
+        return { kind: 'completed' }
+      } catch (err: any) {
+        const errData = err?.response?.data
+        if (err?.response?.status === 402 && errData?.error_code === 'INSUFFICIENT_WALLET_BALANCE') {
+          return {
+            kind: 'insufficient_wallet',
+            currentBalance: errData.data?.current_balance ?? 0,
+            requiredAmount: errData.data?.required_amount ?? 0,
+          }
+        }
+        if (err?.response?.status === 400 && errData?.error_code === 'CASH_UNDERPAID') {
+          return {
+            kind: 'cash_underpaid',
+            totalFare: errData.data?.total_fare ?? 0,
+            cashReceived: errData.data?.cash_received ?? 0,
+          }
+        }
+        throw err
+      }
+    },
+    onSuccess: (result) => {
+      if (result.kind === 'completed') {
+        clearCurrentRide()
+        queryClient.invalidateQueries({ queryKey: ['driver-rides'] })
+        queryClient.invalidateQueries({ queryKey: ['driver'] })
+        queryClient.invalidateQueries({ queryKey: ['driver', 'rides', 'history'] })
+      }
     },
   })
 }
@@ -80,17 +112,10 @@ export function useRideSummary() {
   return useMutation({
     mutationFn: ({
       rideId,
-      actualDistance,
-      actualDuration,
     }: {
       rideId: string
-      actualDistance: number
-      actualDuration: number
     }): Promise<import('../api/driver-rides').RideSummary> =>
-      driverRidesApi.getRideSummary(rideId, {
-        actual_distance: actualDistance,
-        actual_duration: actualDuration,
-      }).then((r) => r.data),
+      driverRidesApi.getRideSummary(rideId).then((r) => r.data),
   })
 }
 
@@ -107,6 +132,6 @@ export function useDriverCurrentRide() {
       return res.data as Ride | null
     },
     enabled: !!token,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   })
 }

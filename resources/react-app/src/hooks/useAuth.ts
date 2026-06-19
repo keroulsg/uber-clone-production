@@ -67,8 +67,8 @@ export function useLogout() {
       queryClient.clear()
 
       // 4. Disconnect Echo
-      const { echo } = await import('../lib/echo')
-      if (echo) echo.disconnect()
+      const { destroyEcho } = await import('../lib/echo')
+      destroyEcho()
 
       // 5. Fire the API call silently — best effort, ignore errors
       try {

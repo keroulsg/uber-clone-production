@@ -17,6 +17,7 @@ export default function AdminRideDetailPage() {
 
   const result = data?.data as any
   const ride = result?.ride ?? null
+  const ridePayment = result?.payment ?? null
   const statusHistory = result?.status_history ?? []
   const ledgerEntries = result?.ledger_entries ?? []
   const debts = result?.debts ?? []
@@ -108,20 +109,33 @@ export default function AdminRideDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Fare Breakdown</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Payment & Settlement</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div><p className="text-muted-foreground">Base</p><p className="font-medium">{formatCurrency(fareBd.base ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Distance</p><p className="font-medium">{formatCurrency(fareBd.distance ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Time</p><p className="font-medium">{formatCurrency(fareBd.time ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Surge</p><p className="font-medium">{formatCurrency(fareBd.surge ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Night</p><p className="font-medium">{formatCurrency(fareBd.night ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Peak</p><p className="font-medium">{formatCurrency(fareBd.peak ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Waiting</p><p className="font-medium">{formatCurrency(fareBd.waiting ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Discount</p><p className="font-medium">{formatCurrency(fareBd.discount ?? 0)}</p></div>
-            <div className="col-span-2"><p className="text-muted-foreground">Total Fare</p><p className="font-bold text-lg">{formatCurrency(fareBd.total ?? ride.actualFare ?? ride.estimatedFare ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Commission</p><p className="font-medium">{formatCurrency(ride.companyCommission ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Driver Amount</p><p className="font-medium">{formatCurrency(ride.driverRideAmount ?? 0)}</p></div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Payment Method</p>
+              <p className="font-medium capitalize">{ridePayment?.method ?? ridePayment?.payment_method ?? ride.paymentMethod ?? 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Payment Status</p>
+              <p className="font-medium">{ridePayment?.status ?? ride.paymentStatus ?? 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Settlement</p>
+              <p className="font-medium">{ridePayment ? (ridePayment.method === 'cash' ? 'Driver collected cash' : 'Platform processed') : 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Total Fare</p>
+              <p className="font-bold text-lg">{formatCurrency(ridePayment?.amount ?? ride.actualFare ?? ride.estimatedFare ?? 0)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Commission</p>
+              <p className="font-medium">{formatCurrency(ridePayment?.company_commission ?? ridePayment?.platform_fee ?? 0)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Driver Payout</p>
+              <p className="font-medium">{formatCurrency(ridePayment?.driver_amount ?? 0)}</p>
+            </div>
           </div>
         </CardContent>
       </Card>

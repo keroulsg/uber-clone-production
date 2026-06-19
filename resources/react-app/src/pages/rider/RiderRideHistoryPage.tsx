@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/common/DataTable'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { RatingStars } from '@/components/common/RatingStars'
@@ -226,6 +227,10 @@ export default function RiderRideHistoryPage() {
           {selectedRide && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Booking ID</span>
+                <span className="font-mono text-sm">{selectedRide.bookingId}</span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Status</span>
                 <StatusBadge status={selectedRide.status} type="ride" />
               </div>
@@ -244,6 +249,12 @@ export default function RiderRideHistoryPage() {
                   <p className="font-medium">{selectedRide.driver.user?.name}</p>
                 </div>
               )}
+              {selectedRide.vehicleType && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Vehicle Type</p>
+                  <p className="font-medium">{selectedRide.vehicleType.name}</p>
+                </div>
+              )}
               <Separator />
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -251,9 +262,30 @@ export default function RiderRideHistoryPage() {
                   <p className="font-medium">{selectedRide.actualDistance ?? selectedRide.estimatedDistance ?? 'N/A'} km</p>
                 </div>
                 <div>
+                  <p className="text-xs text-muted-foreground">Duration</p>
+                  <p className="font-medium">{selectedRide.actualDuration ?? selectedRide.estimatedDuration ?? 'N/A'} min</p>
+                </div>
+                <div>
                   <p className="text-xs text-muted-foreground">Fare</p>
                   <p className="font-bold text-lg">{formatCurrency(selectedRide.actualFare ?? selectedRide.estimatedFare)}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Payment</p>
+                  <p className="font-medium capitalize">{selectedRide.paymentMethod ?? 'N/A'}</p>
+                </div>
+              </div>
+              {selectedRide.paymentStatus && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Payment Status</span>
+                  <Badge variant={selectedRide.paymentStatus === 'completed' ? 'success' : 'warning'}>
+                    {selectedRide.paymentStatus}
+                  </Badge>
+                </div>
+              )}
+              <Separator />
+              <div className="text-xs text-muted-foreground">
+                <p>Created: {formatDate(selectedRide.createdAt)}</p>
+                {selectedRide.completedAt && <p>Completed: {formatDate(selectedRide.completedAt)}</p>}
               </div>
             </div>
           )}

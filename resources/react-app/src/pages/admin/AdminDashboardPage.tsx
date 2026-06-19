@@ -32,8 +32,8 @@ export default function AdminDashboardPage() {
   const chartData = chartRes?.data
   const response = latestRidesRes?.data as ApiResponse<PaginatedResponse<Ride>> | undefined
   const latestRides: Ride[] = response?.data?.data ?? []
-  const driverResponse = latestDriversRes?.data as ApiResponse<PaginatedResponse<Driver>> | undefined
-  const latestDrivers: Driver[] = driverResponse?.data?.data ?? []
+  const driverResponse = latestDriversRes?.data as any
+  const latestDrivers: Driver[] = (driverResponse?.data?.data ?? []).map((item: any) => item.driver ?? item)
 
   const today = new Date()
   const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 18 ? 'Good afternoon' : 'Good evening'
@@ -100,26 +100,41 @@ export default function AdminDashboardPage() {
           <Card><CardContent className="h-[350px] flex items-center justify-center text-muted-foreground">Loading charts...</CardContent></Card>
           <Card><CardContent className="h-[350px] flex items-center justify-center text-muted-foreground">Loading charts...</CardContent></Card>
         </div>
-      ) : chartData ? (
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          <DashboardCharts
-            type="line"
-            data={Array.isArray(chartData) ? chartData : []}
-            config={{ title: 'Revenue Trends', xAxisKey: 'label', height: 300 }}
-            className="md:col-span-2"
-          />
-          <DashboardCharts
-            type="area"
-            data={Array.isArray(chartData) ? chartData : []}
-            config={{ title: 'Ride Trends', xAxisKey: 'label', height: 300 }}
-          />
-          <DashboardCharts
-            type="bar"
-            data={Array.isArray(chartData) ? chartData : []}
-            config={{ title: 'User Growth', xAxisKey: 'label', height: 300 }}
-          />
-        </div>
-      ) : null}
+      ) : chartData ? (() => {
+        const cd = chartData as { labels: string[]; datasets: { label: string; data: number[] }[] }
+        const labels = cd?.labels ?? []
+        const datasets = cd?.datasets ?? []
+        if (labels.length === 0) return null
+        
+        const combinedData = labels.map((label: string, i: number) => {
+          const point: Record<string, string | number> = { label }
+          datasets.forEach((ds: { label: string; data: number[] }) => {
+            point[ds.label] = ds.data[i] ?? 0
+          })
+          return point
+        })
+
+        return (
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <DashboardCharts
+              type="line"
+              data={combinedData.map((d: Record<string, string | number>) => ({ label: d.label, Revenue: d.Revenue ?? d.revenue ?? 0 }))}
+              config={{ title: 'Revenue Trends', xAxisKey: 'label', height: 300 }}
+              className="md:col-span-2"
+            />
+            <DashboardCharts
+              type="area"
+              data={combinedData.map((d: Record<string, string | number>) => ({ label: d.label, Rides: d.Rides ?? d.rides ?? 0 }))}
+              config={{ title: 'Ride Trends', xAxisKey: 'label', height: 300 }}
+            />
+            <DashboardCharts
+              type="bar"
+              data={combinedData.map((d: Record<string, string | number>) => ({ label: d.label, Users: d.Users ?? d.users ?? 0 }))}
+              config={{ title: 'User Growth', xAxisKey: 'label', height: 300 }}
+            />
+          </div>
+        )
+      })() : null}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

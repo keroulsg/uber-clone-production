@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react'
-import { echo } from '@/lib/echo'
+import { useEffect, useRef } from 'react'
+import { getEcho } from '@/lib/echo'
 
 interface RideBroadcastEvents {
   onAccepted?: (data: Record<string, unknown>) => void
@@ -17,9 +17,10 @@ export function useRideBroadcast(rideId: number | string | null, events: RideBro
   const cleanupRef = useRef<(() => void)[]>([])
 
   useEffect(() => {
-    if (!rideId || !echo) return
+    const e = getEcho()
+    if (!rideId || !e) return
 
-    const channel = echo.private(`ride.${rideId}`)
+    const channel = e.private(`ride.${rideId}`)
 
     const subscriptions: Array<{ event: string; handler: (data: unknown) => void }> = [
       { event: '.ride.accepted', handler: (d) => eventsRef.current.onAccepted?.(d as Record<string, unknown>) },
@@ -41,7 +42,7 @@ export function useRideBroadcast(rideId: number | string | null, events: RideBro
 
     return () => {
       cleanupRef.current.forEach((fn) => fn())
-      try { echo?.leave(`ride.${rideId}`) } catch { /* ok */ }
+      try { e.leave(`ride.${rideId}`) } catch { /* ok */ }
     }
   }, [rideId])
 }
@@ -54,17 +55,20 @@ export function useDriverLocationChannel(
   handlerRef.current = onLocation
 
   useEffect(() => {
-    if (!driverId || !echo) return
+    const e = getEcho()
+    if (!driverId || !e) return
 
-    const channel = echo.private(`driver.location.${driverId}`)
+    const channel = e.private(`driver.location.${driverId}`)
 
-    channel.listen('.driver.location.updated', (data: unknown) => {
+    const handler = (data: unknown) => {
       const d = data as { lat: number; lng: number; bearing?: number }
       handlerRef.current({ lat: d.lat, lng: d.lng, bearing: d.bearing })
-    })
+    }
+    channel.listen('.driver.location.updated', handler)
 
     return () => {
-      try { echo?.leave(`driver.location.${driverId}`) } catch { /* ok */ }
+      try { channel.stopListening('.driver.location.updated', handler) } catch { /* ok */ }
+      try { e.leave(`driver.location.${driverId}`) } catch { /* ok */ }
     }
   }, [driverId])
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Navigation, ListOrdered, DollarSign, History, Star,
+  Navigation, ListOrdered, DollarSign, Wallet, History, Star,
   User, Truck, Settings, Menu, Power, ChevronDown, FileText, Bell, LifeBuoy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,6 +28,7 @@ const navItems = [
   { icon: Navigation, label: 'Current Ride', href: '/driver/current-ride' },
   { icon: ListOrdered, label: 'Ride Requests', href: '/driver/requests' },
   { icon: DollarSign, label: 'Earnings', href: '/driver/earnings' },
+  { icon: Wallet, label: 'Wallet', href: '/driver/wallet' },
   { icon: History, label: 'Ride History', href: '/driver/history' },
   { icon: Star, label: 'Ratings', href: '/driver/ratings' },
   { icon: User, label: 'Profile', href: '/driver/profile' },

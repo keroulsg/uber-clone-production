@@ -13,6 +13,7 @@ class DriverResource extends JsonResource
             'id' => (string) $this->id,
             'userId' => (string) $this->user_id,
             'user' => new UserResource($this->whenLoaded('user')),
+            'email' => $this->whenLoaded('user', fn() => $this->user->email),
             'licenseNumber' => $this->license_number,
             'isOnline' => $this->is_online,
             'isApproved' => $this->is_approved,

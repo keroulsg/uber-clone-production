@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -15,6 +15,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog'
 import { StatCard } from '@/components/common/StatCard'
 import { Map } from '@/components/common/Map'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -24,6 +27,8 @@ import { EmptyState } from '@/components/common/EmptyState'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { useDriverBroadcast } from '@/hooks/useDriverBroadcast'
 import type { IncomingRideRequest } from '@/hooks/useDriverBroadcast'
+import { getRideHistory } from '@/api/drivers'
+import type { RideBrief } from '@/types'
 
 export default function DriverDashboardPage() {
   const navigate = useNavigate()
@@ -36,10 +41,19 @@ export default function DriverDashboardPage() {
   const completeRide = useCompleteRide()
 
   const { data: profileData, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useDriverProfile()
-  const { data: pendingRidesData, isLoading: pendingLoading } = usePendingRides()
+  const { data: pendingRidesData, isLoading: pendingLoading, refetch: refetchPending } = usePendingRides()
   const { data: currentRideData, isLoading: currentLoading } = useDriverCurrentRide()
   const { data: earningsData } = useEarnings()
   const { data: performanceData } = usePerformance()
+
+  // Fallback polling interval to ensure pending rides UI updates
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  useEffect(() => {
+    pollingRef.current = setInterval(() => { refetchPending() }, 5000)
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current)
+    }
+  }, [refetchPending])
 
   const stats = performanceData?.data as {
     acceptanceRate: number
@@ -49,8 +63,14 @@ export default function DriverDashboardPage() {
     weeklyEarnings: number
   } | undefined
 
+  const { data: historyData } = useQuery({
+    queryKey: ['driver', 'rides', 'history', { page: 1, per_page: 5 }],
+    queryFn: () => getRideHistory({ page: 1, per_page: 5 }),
+  })
   const pendingRides = (Array.isArray(pendingRidesData?.data) ? pendingRidesData.data : []) as any[]
-  const rideHistory = ((profileData as any)?.data)?.recentRides ?? []
+  const rideHistory = ((historyData?.data as any)?.data ?? []) as RideBrief[]
+  const [selectedRide, setSelectedRide] = useState<RideBrief | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   const handleToggleOnline = () => {
     toggleOnline.mutate()
@@ -177,6 +197,18 @@ export default function DriverDashboardPage() {
                 </div>
               </div>
             </div>
+            {(() => {
+              const debt = Number((earningsData?.data as any)?.outstandingDebt ?? 0)
+              if (debt <= 0) return null
+              return (
+                <div className="mt-3 p-2 rounded bg-amber-50 border border-amber-200 text-xs">
+                  <div className="flex justify-between text-amber-700 font-medium">
+                    <span>Outstanding Debt</span>
+                    <span>{formatCurrency(debt)}</span>
+                  </div>
+                </div>
+              )
+            })()}
           </CardContent>
         </Card>
       )}
@@ -194,59 +226,57 @@ export default function DriverDashboardPage() {
               <CardContent className="space-y-3">
                 {pendingRides.map((ride: any) => (
                   <div key={ride.id} className="rounded-lg border p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-2">
-                          <MapPin className="h-4 w-4 text-emerald-500 mt-0.5" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Pickup</p>
-                            <p className="text-sm font-medium">{ride.pickup?.address}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <MapPin className="h-4 w-4 text-red-500 mt-0.5" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Destination</p>
-                            <p className="text-sm font-medium">{ride.destination?.address}</p>
-                          </div>
-                        </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-mono">#{ride.bookingId}</span>
+                        <Badge variant={ride.paymentMethod === 'cash' ? 'outline' : 'secondary'} className="text-[10px]">
+                          {ride.paymentMethod === 'wallet' ? 'Wallet' : ride.paymentMethod === 'cash' ? 'Cash' : ride.paymentMethod ?? 'N/A'}
+                        </Badge>
+                        {ride.vehicleType && (
+                          <Badge variant="outline" className="text-[10px]">{ride.vehicleType.name}</Badge>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold">{formatCurrency(ride.estimatedFare)}</p>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <p className="text-lg font-bold">{formatCurrency(ride.estimatedFare)}</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-emerald-500 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Pickup</p>
+                        <p className="text-sm font-medium">{ride.pickup?.address}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-red-500 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Destination</p>
+                        <p className="text-sm font-medium">{ride.destination?.address}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {ride.estimatedDistance && <span>{formatDistance(ride.estimatedDistance)}</span>}
+                        {ride.estimatedDuration && <span>{formatDuration(ride.estimatedDuration)}</span>}
+                        <div className="flex items-center gap-1">
                           <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                           {ride.rider?.rating?.toFixed(1) ?? 'New'}
                         </div>
-                        {ride.surge_multiplier != null && ride.surge_multiplier > 1 && (
-                          <Badge variant="outline" className="mt-1 bg-amber-100 text-amber-800 border-amber-300 text-[10px]">
-                            🔥 {ride.surge_multiplier}x Surge
-                          </Badge>
-                        )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {ride.estimatedDistance && <span>{formatDistance(ride.estimatedDistance)}</span>}
-                      {ride.estimatedDuration && <span>{formatDuration(ride.estimatedDuration)}</span>}
+                      {ride.surge_multiplier != null && ride.surge_multiplier > 1 && (
+                        <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px]">
+                          🔥 {ride.surge_multiplier}x Surge
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="flex-1"
+                      <Button variant="default" size="sm" className="flex-1"
                         onClick={() => acceptRide.mutate(ride.id)}
-                        disabled={acceptRide.isPending}
-                      >
+                        disabled={acceptRide.isPending}>
                         Accept
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
+                      <Button variant="outline" size="sm" className="flex-1"
                         onClick={() => rejectRide.mutate(ride.id)}
-                        disabled={rejectRide.isPending}
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Reject
+                        disabled={rejectRide.isPending}>
+                        <X className="h-4 w-4 mr-1" />Reject
                       </Button>
                     </div>
                   </div>
@@ -333,24 +363,96 @@ export default function DriverDashboardPage() {
                 <EmptyState title="No rides yet" />
               ) : (
                 <div className="space-y-3">
-                  {rideHistory.slice(0, 5).map((ride: any) => (
-                    <div key={ride.id} className="flex items-center justify-between text-sm">
-                      <div className="flex-1 min-w-0">
-                        <p className="truncate font-medium">{ride.pickupAddress}</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(ride.createdAt)}</p>
+                  {rideHistory.slice(0, 5).map((ride: RideBrief) => (
+                    <div
+                      key={ride.id}
+                      className="rounded-lg border p-3 space-y-2 text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => { setSelectedRide(ride); setDetailOpen(true) }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground font-mono">#{ride.bookingId}</span>
+                          <StatusBadge status={ride.status} type="ride" />
+                        </div>
+                        <span className="font-semibold">{formatCurrency(ride.actualFare ?? ride.estimatedFare)}</span>
                       </div>
-                      <div className="text-right ml-2">
-                        <p className="font-medium">{formatCurrency(ride.actualFare ?? ride.estimatedFare)}</p>
-                        <StatusBadge status={ride.status} type="ride" />
+                      <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                        <div className="truncate">
+                          <span className="text-emerald-500">↑</span> {ride.pickup?.address}
+                        </div>
+                        <div className="truncate">
+                          <span className="text-red-500">↓</span> {ride.destination?.address}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{formatDate(ride.createdAt)}</span>
+                        <div className="flex items-center gap-1">
+                          {ride.paymentMethod && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0">
+                              {ride.paymentMethod === 'wallet' ? 'Wallet' : ride.paymentMethod === 'cash' ? 'Cash' : ride.paymentMethod}
+                            </Badge>
+                          )}
+                          {(ride as any).driverAmount != null && Number((ride as any).driverAmount) > 0 && (
+                            <span className="text-emerald-600 font-medium">+{formatCurrency((ride as any).driverAmount)}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
+                  <Button variant="link" className="w-full mt-2" onClick={() => navigate('/driver/rides/history')}>
+                    View All Rides
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ride Details</DialogTitle>
+            <DialogDescription>Booking ID: {selectedRide?.bookingId}</DialogDescription>
+          </DialogHeader>
+          {selectedRide && (
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Status</span>
+                <StatusBadge status={selectedRide.status} type="ride" />
+              </div>
+              <Separator />
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Pickup</p>
+                <p className="font-medium">{selectedRide.pickup?.address}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Destination</p>
+                <p className="font-medium">{selectedRide.destination?.address}</p>
+              </div>
+              <Separator />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Fare</p>
+                  <p className="font-bold text-lg">{formatCurrency(selectedRide.actualFare ?? selectedRide.estimatedFare)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Payment</p>
+                  <p className="font-medium capitalize">{selectedRide.paymentMethod ?? 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Driver Earning</p>
+                  <p className="font-medium text-emerald-600">{formatCurrency((selectedRide as any).driverAmount ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Completed</p>
+                  <p className="font-medium">{selectedRide.completedAt ? formatDate(selectedRide.completedAt) : 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

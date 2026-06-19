@@ -12,11 +12,20 @@ class AdminVehicleController extends Controller
 {
     public function index(): JsonResponse
     {
+        $paginator = Vehicle::with('driver.user', 'vehicleType')->latest()->paginate(20);
         return response()->json([
             'success' => true,
-            'data' => VehicleResource::collection(
-                Vehicle::with('driver.user', 'vehicleType')->latest()->paginate(20)
-            ),
+            'data' => [
+                'data' => VehicleResource::collection($paginator->items()),
+                'meta' => [
+                    'currentPage' => $paginator->currentPage(),
+                    'lastPage' => $paginator->lastPage(),
+                    'perPage' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'from' => $paginator->firstItem() ?? 0,
+                    'to' => $paginator->lastItem() ?? 0,
+                ],
+            ],
         ]);
     }
 

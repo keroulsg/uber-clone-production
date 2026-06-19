@@ -458,7 +458,7 @@ export default function RiderDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Select Vehicle Type</CardTitle>
-          <CardDescription>Choose your ride option. Fare updates when you select.</CardDescription>
+          <CardDescription>{pickupLat == null || destLat == null ? 'Set pickup and destination first to see fare estimates.' : 'Choose your ride option.'}</CardDescription>
         </CardHeader>
         <CardContent>
           {vehicleTypesLoading ? (
@@ -506,30 +506,21 @@ export default function RiderDashboardPage() {
                         <p className="text-xs text-muted-foreground">{vt.description}</p>
                       </div>
                     </div>
-                    <Separator className="my-3" />
-                    <div className="space-y-1.5 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Base fare</span>
-                        <span className="font-medium">{formatCurrency(vt.base_fare)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Per km</span>
-                        <span className="font-medium">{formatCurrency(vt.per_km_rate)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Per minute</span>
-                        <span className="font-medium">{formatCurrency(vt.per_minute_rate)}</span>
-                      </div>
-                    </div>
-                    <Separator className="my-3" />
-                    {totalFare != null && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">
-                          {routeDistance != null ? `${routeDistance.toFixed(1)} km` : ''}
-                        </span>
-                        <span className="font-bold text-xl">{formatCurrency(totalFare)}</span>
-                      </div>
-                    )}
+                    {pickupLat != null && destLat != null ? (
+                      <>
+                        {totalFare != null && (
+                          <>
+                            <Separator className="my-3" />
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">
+                                {routeDistance != null ? `${routeDistance.toFixed(1)} km` : ''}
+                              </span>
+                              <span className="font-bold text-xl">{formatCurrency(totalFare)}</span>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : null}
                     {isSelected && (
                       <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
                         <svg className="h-3 w-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PaymentResource;
 use App\Http\Resources\WalletResource;
 use App\Http\Resources\TransactionResource;
+use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Repositories\PaymentRepository;
 use App\Repositories\WalletRepository;
@@ -71,12 +72,29 @@ class PaymentController extends Controller
     {
         $request->validate(['amount' => 'required|numeric|min:1']);
 
+        $wallet = $this->walletRepo->findByUser($request->user()->id);
+        if (!$wallet) {
+            return response()->json(['success' => false, 'message' => 'Wallet not found'], 404);
+        }
+
+        $balanceBefore = (float) $wallet->balance;
         $this->walletRepo->addBalance($request->user()->id, $request->input('amount'));
+        $wallet->refresh();
+        $balanceAfter = (float) $wallet->balance;
+
+        LedgerEntry::create([
+            'user_id' => $request->user()->id,
+            'type' => 'credit',
+            'amount' => (float) $request->input('amount'),
+            'balance_before' => $balanceBefore,
+            'balance_after' => $balanceAfter,
+            'description' => 'Wallet top-up',
+        ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Funds added',
-            'data' => new WalletResource($this->walletRepo->findByUser($request->user()->id)),
+            'data' => new WalletResource($wallet),
         ]);
     }
 
@@ -84,12 +102,27 @@ class PaymentController extends Controller
     {
         $wallet = $this->walletRepo->findByUser($request->user()->id);
         if (!$wallet) {
-            return response()->json(['success' => false, 'data' => []]);
+            return response()->json(['success' => true, 'data' => ['data' => [], 'meta' => ['currentPage' => 1, 'lastPage' => 1, 'perPage' => 10, 'total' => 0, 'from' => 0, 'to' => 0]]]);
         }
+
+        $paginator = $wallet->transactions()
+            ->whereIn('type', ['credit', 'debit'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->input('per_page', 10));
 
         return response()->json([
             'success' => true,
-            'data' => TransactionResource::collection($wallet->transactions),
+            'data' => [
+                'data' => TransactionResource::collection($paginator->items()),
+                'meta' => [
+                    'currentPage' => $paginator->currentPage(),
+                    'lastPage' => $paginator->lastPage(),
+                    'perPage' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'from' => $paginator->firstItem() ?? 0,
+                    'to' => $paginator->lastItem() ?? 0,
+                ],
+            ],
         ]);
     }
 }

@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
-import { useUIStore as useThemeStore } from './stores/uiStore'
 import { useAppConfig } from './stores/appConfigStore'
 import { useUser } from './hooks/useAuth'
 
@@ -45,6 +44,7 @@ import DriverProfilePage from './pages/driver/DriverProfilePage'
 import DriverVehiclePage from './pages/driver/DriverVehiclePage'
 import DriverDocumentsPage from './pages/driver/DriverDocumentsPage'
 import DriverSettingsPage from './pages/driver/DriverSettingsPage'
+import DriverWalletPage from './pages/driver/DriverWalletPage'
 import DriverNotificationsPage from './pages/driver/DriverNotificationsPage'
 import DriverSupportPage from './pages/driver/DriverSupportPage'
 
@@ -108,14 +108,9 @@ function CurrencyInitializer() {
 }
 
 export default function App() {
-  const theme = useThemeStore((s) => s.theme)
   const token = useAuthStore((s) => s.token)
   const _hasHydrated = useAuthStore((s) => s._hasHydrated)
   const { isLoading, isError } = useUser()
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-  }, [theme])
 
   // Wait for zustand persist hydration before any route rendering
   if (!_hasHydrated) return <LoadingScreen />
@@ -160,6 +155,7 @@ export default function App() {
         <Route path="rides" element={<DriverRideRequestsPage />} />
         <Route path="current-ride" element={<DriverCurrentRidePage />} />
         <Route path="earnings" element={<DriverEarningsPage />} />
+        <Route path="wallet" element={<DriverWalletPage />} />
         <Route path="history" element={<DriverRideHistoryPage />} />
         <Route path="ratings" element={<DriverRatingPage />} />
         <Route path="profile" element={<DriverProfilePage />} />

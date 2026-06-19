@@ -148,7 +148,7 @@ class FinanceTest extends TestCase
 
         $expectedCommission = round($ride->actual_fare * 0.10, 2);
 
-        $this->assertEquals(0, $payment->driver_amount);
+        $this->assertGreaterThan(0, $payment->driver_amount, 'Cash ride driver_amount should reflect earnings');
         $this->assertEquals($expectedCommission, $payment->platform_fee);
 
         $riderWallet = $this->walletRepo->findByUser($this->rider->id);

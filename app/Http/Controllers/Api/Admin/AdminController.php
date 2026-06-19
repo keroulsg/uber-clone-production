@@ -8,8 +8,13 @@ use App\Http\Resources\RideResource;
 use App\Http\Resources\DriverResource;
 use App\Models\User;
 use App\Models\Ride;
+use App\Models\Payment;
+use App\Models\DriverDebt;
+use App\Models\LedgerEntry;
 use App\Models\Setting;
 use App\Models\Driver;
+use App\Enums\RideStatus;
+use App\Enums\PaymentStatus;
 use App\Services\AdminService;
 use App\Repositories\RideRepository;
 use Illuminate\Http\JsonResponse;
@@ -42,11 +47,33 @@ class AdminController extends Controller
 
     public function charts(): JsonResponse
     {
+        $now = now();
+        $labels = [];
+        $revenue = [];
+        $rides = [];
+        $users = [];
+
+        for ($i = 6; $i >= 0; $i--) {
+            $date = $now->copy()->subDays($i)->toDateString();
+            $labels[] = $now->copy()->subDays($i)->format('M d');
+            $revenue[] = (float) Payment::whereDate('paid_at', $date)
+                ->where('status', PaymentStatus::Completed)
+                ->sum('amount');
+            $rides[] = Ride::whereDate('completed_at', $date)
+                ->where('status', RideStatus::RideCompleted)
+                ->count();
+            $users[] = User::whereDate('created_at', $date)->count();
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
-                'labels' => [],
-                'datasets' => [],
+                'labels' => $labels,
+                'datasets' => [
+                    ['label' => 'Revenue', 'data' => $revenue],
+                    ['label' => 'Rides', 'data' => $rides],
+                    ['label' => 'Users', 'data' => $users],
+                ],
             ],
         ]);
     }
@@ -106,10 +133,12 @@ class AdminController extends Controller
             'data' => [
                 'data' => RideResource::collection($paginator->items()),
                 'meta' => [
-                    'current_page' => $paginator->currentPage(),
-                    'last_page' => $paginator->lastPage(),
-                    'per_page' => $paginator->perPage(),
+                    'currentPage' => $paginator->currentPage(),
+                    'lastPage' => $paginator->lastPage(),
+                    'perPage' => $paginator->perPage(),
                     'total' => $paginator->total(),
+                    'from' => $paginator->firstItem() ?? 0,
+                    'to' => $paginator->lastItem() ?? 0,
                 ],
             ],
         ]);
@@ -136,7 +165,7 @@ class AdminController extends Controller
                     'created_at' => $h->created_at?->toISOString(),
                 ]),
                 'ledger_entries' => [],
-                'debts' => $ride->driver?->debts?->map(fn($d) => [
+                'debts' => $ride->driver?->debts?->where('ride_id', $ride->id)->values()->map(fn($d) => [
                     'id' => $d->id,
                     'ride_id' => (string) $d->ride_id,
                     'type' => $d->type,
@@ -183,9 +212,38 @@ class AdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Payment not found'], 404);
         }
 
+        $debts = \App\Models\DriverDebt::where('ride_id', $payment->ride_id)->get();
+        $ledgerEntries = \App\Models\LedgerEntry::where(function($q) use ($payment) {
+            $q->where(function($q2) use ($payment) {
+                $q2->where('reference_type', \App\Models\Ride::class)
+                   ->where('reference_id', $payment->ride_id);
+            })->orWhere(function($q2) use ($payment) {
+                $q2->where('reference_type', \App\Models\Payment::class)
+                   ->where('reference_id', $payment->id);
+            });
+        })->get();
+
         return response()->json([
             'success' => true,
-            'data' => new \App\Http\Resources\PaymentResource($payment),
+            'data' => [
+                'payment' => new \App\Http\Resources\PaymentResource($payment),
+                'driver_debts' => $debts->map(fn($d) => [
+                    'id' => $d->id,
+                    'type' => $d->type,
+                    'amount' => (float) $d->amount,
+                    'status' => $d->paid_at ? 'paid' : 'unpaid',
+                    'created_at' => $d->created_at?->toISOString(),
+                ]),
+                'ledger_entries' => $ledgerEntries->map(fn($e) => [
+                    'id' => $e->id,
+                    'type' => $e->type,
+                    'amount' => (float) $e->amount,
+                    'description' => $e->description,
+                    'balance_before' => (float) $e->balance_before,
+                    'balance_after' => (float) $e->balance_after,
+                    'created_at' => $e->created_at?->toISOString(),
+                ]),
+            ],
         ]);
     }
 

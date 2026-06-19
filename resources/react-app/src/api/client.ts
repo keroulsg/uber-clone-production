@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios'
 import { toast } from 'sonner'
 import { useAuthStore } from '../stores/authStore'
 import { queryClient } from '../lib/queryClient'
-import echo from '../lib/echo'
+import { destroyEcho } from '../lib/echo'
 
 let isHandling401 = false
 let isHandling403 = false
@@ -55,7 +55,7 @@ apiClient.interceptors.response.use(
       queryClient.clear()
       useAuthStore.getState().logout()
 
-      if (echo) echo.disconnect()
+      destroyEcho()
 
       const currentPath = window.location.pathname
       if (currentPath !== '/login') {

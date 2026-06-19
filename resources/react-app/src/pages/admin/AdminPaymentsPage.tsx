@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, Download, DollarSign, TrendingUp, TrendingDown } from 'lucide-react'
-import { useAdminPayments } from '@/hooks/useAdmin'
+import { useAdminPayments, usePaymentDetail } from '@/hooks/useAdmin'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { PageHeader } from '@/components/common/PageHeader'
 import { DataTable, type Column } from '@/components/common/DataTable'
@@ -205,55 +205,87 @@ export default function AdminPaymentsPage() {
       </Card>
 
       <Dialog open={!!selectedPayment} onOpenChange={() => setSelectedPayment(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Payment Details</DialogTitle>
-            <DialogDescription>Transaction information</DialogDescription>
-          </DialogHeader>
-          {selectedPayment && (
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Transaction ID</p>
-                <p className="font-medium">{selectedPayment.transactionId ?? String(selectedPayment.id).slice(0, 8)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Status</p>
-                <StatusBadge status={selectedPayment.status} type="payment" />
-              </div>
-              <div>
-                <p className="text-muted-foreground">Amount</p>
-                <p className="font-medium">{formatCurrency(selectedPayment.amount)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Platform Fee</p>
-                <p className="font-medium">{formatCurrency(selectedPayment.platformFee)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Driver Payout</p>
-                <p className="font-medium">{formatCurrency(selectedPayment.driverAmount)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Tax</p>
-                <p className="font-medium">{formatCurrency(selectedPayment.taxAmount)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Payment Method</p>
-                <p className="font-medium">{selectedPayment.paymentMethod ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Currency</p>
-                <p className="font-medium">{selectedPayment.currency}</p>
-              </div>
-              {selectedPayment.paidAt && (
-                <div className="col-span-2">
-                  <p className="text-muted-foreground">Paid At</p>
-                  <p className="font-medium">{formatDate(selectedPayment.paidAt)}</p>
-                </div>
-              )}
-            </div>
-          )}
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          {selectedPayment && <PaymentDetailContent paymentId={selectedPayment.id} />}
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function PaymentDetailContent({ paymentId }: { paymentId: string }) {
+  const { data: detailRes, isLoading } = usePaymentDetail(paymentId)
+  const detail = detailRes?.data as any
+  const payment = detail?.payment as any
+  const debts = detail?.driver_debts ?? []
+  const ledgerEntries = detail?.ledger_entries ?? []
+
+  if (isLoading) return <div className="py-8 text-center text-muted-foreground">Loading payment details...</div>
+  if (!payment) return <div className="py-8 text-center text-muted-foreground">Payment not found</div>
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Payment Details</DialogTitle>
+        <DialogDescription>Transaction #{payment.transactionId ?? payment.id?.slice(0, 8)}</DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-sm font-semibold mb-2">Payment Info</h4>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><p className="text-muted-foreground text-xs">Amount</p><p className="font-medium">{formatCurrency(payment.amount)}</p></div>
+            <div><p className="text-muted-foreground text-xs">Status</p><StatusBadge status={payment.status} type="payment" /></div>
+            <div><p className="text-muted-foreground text-xs">Method</p><p className="font-medium capitalize">{payment.paymentMethod ?? '—'}</p></div>
+            <div><p className="text-muted-foreground text-xs">Currency</p><p className="font-medium">{payment.currency}</p></div>
+            <div><p className="text-muted-foreground text-xs">Commission</p><p className="font-medium">{formatCurrency(payment.companyCommission ?? payment.platformFee ?? 0)}</p></div>
+            <div><p className="text-muted-foreground text-xs">Driver Payout</p><p className="font-medium">{formatCurrency(payment.driverAmount ?? 0)}</p></div>
+            <div><p className="text-muted-foreground text-xs">Rider</p><p className="font-medium">{payment.rider?.name ?? '—'}</p></div>
+            <div><p className="text-muted-foreground text-xs">Driver</p><p className="font-medium">{payment.driver?.name ?? '—'}</p></div>
+            {payment.paidAt && <div className="col-span-2"><p className="text-muted-foreground text-xs">Paid At</p><p className="font-medium">{formatDate(payment.paidAt)}</p></div>}
+          </div>
+        </div>
+
+        {debts.length > 0 && (
+          <div>
+            <h4 className="text-sm font-semibold mb-2">Driver Debts</h4>
+            <div className="space-y-1">
+              {debts.map((d: any) => (
+                <div key={d.id} className="flex justify-between text-sm p-2 rounded bg-amber-50 border border-amber-200">
+                  <span className="capitalize">{d.type.replace(/_/g, ' ')}</span>
+                  <span className="font-medium text-amber-700">{formatCurrency(d.amount)}</span>
+                  <span className="text-xs">{d.status === 'paid' ? 'Paid' : 'Unpaid'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {ledgerEntries.length > 0 && (
+          <div>
+            <h4 className="text-sm font-semibold mb-2">Ledger Entries</h4>
+            <div className="space-y-1">
+              {ledgerEntries.map((e: any) => (
+                <div key={e.id} className="flex justify-between text-sm p-2 rounded bg-muted">
+                  <div>
+                    <span className={e.type === 'credit' ? 'text-emerald-600' : 'text-red-600'}>
+                      {e.type === 'credit' ? '+' : '-'}{formatCurrency(e.amount)}
+                    </span>
+                    <span className="text-muted-foreground ml-2">{e.description}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{formatDate(e.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {debts.length === 0 && ledgerEntries.length === 0 && payment.paymentMethod === 'cash' && (
+          <p className="text-xs text-muted-foreground">Cash ride — driver collects payment directly. No wallet movement.</p>
+        )}
+        {debts.length === 0 && ledgerEntries.length === 0 && payment.paymentMethod === 'wallet' && (
+          <p className="text-xs text-muted-foreground">Wallet ride — full amount processed through wallet system.</p>
+        )}
+      </div>
+    </>
   )
 }

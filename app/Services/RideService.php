@@ -143,14 +143,14 @@ class RideService
         return $ride->fresh();
     }
 
-    public function completeRide(int $rideId, float $actualDistanceKm, int $actualDurationMin): Ride
+    public function completeRide(int $rideId, float $actualDistanceKm, int $actualDurationMin, ?float $cashReceived = null, bool $creditChange = false): Ride
     {
         $ride = $this->rideRepo->findById($rideId);
         if (!$ride) {
             throw new \RuntimeException('Ride not found');
         }
 
-        $ride = \Illuminate\Support\Facades\DB::transaction(function () use ($ride, $actualDistanceKm, $actualDurationMin) {
+        $ride = \Illuminate\Support\Facades\DB::transaction(function () use ($ride, $actualDistanceKm, $actualDurationMin, $cashReceived, $creditChange) {
             $lockedRide = \App\Models\Ride::where('id', $ride->id)->lockForUpdate()->first();
             if (!$lockedRide || $lockedRide->status !== RideStatus::RideStarted) {
                 throw new \RuntimeException('Invalid state transition');
@@ -169,7 +169,7 @@ class RideService
                 'created_at' => now(),
             ]);
 
-            $this->paymentService->processPayment($lockedRide, $actualDistanceKm, $actualDurationMin);
+            $this->paymentService->processPayment($lockedRide, $actualDistanceKm, $actualDurationMin, $cashReceived, $creditChange);
 
             Notification::create([
                 'type' => 'ride_completed',

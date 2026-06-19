@@ -66,7 +66,19 @@ export default function AdminDriversPage() {
   const vehicleTypes = (vehicleTypesData as any)?.data ?? []
 
   const response = data?.data as any
-  const drivers = response?.data ?? []
+  const driverItems = response?.data ?? []
+  const drivers = driverItems.map((item: any) => ({ ...(item.driver ?? item),
+    outstanding_debt: item.outstanding_debt ?? 0,
+    unpaid_commission: item.unpaid_commission ?? 0,
+    cash_change_liability: item.cash_change_liability ?? 0,
+    total_rides: item.total_rides ?? 0,
+    completed_rides: item.completed_rides ?? 0,
+    today_completed_rides: item.today_completed_rides ?? 0,
+    today_earnings: item.today_earnings ?? 0,
+    total_earnings: item.total_earnings ?? 0,
+    cash_collected: item.cash_collected ?? 0,
+    wallet_earnings: item.wallet_earnings ?? 0,
+  })) as any[]
   const meta = response?.meta ?? { currentPage: 1, lastPage: 1, perPage: 10, total: 0, from: 0, to: 0 }
 
   const handleConfirm = async () => {
@@ -122,6 +134,10 @@ export default function AdminDriversPage() {
 
   const columns: Column<Driver>[] = [
     {
+      header: 'ID',
+      accessor: (row) => row.id ?? (row as any).userId ?? '—',
+    },
+    {
       header: 'Name',
       accessor: (row) => (
         <div className="flex items-center gap-3">
@@ -131,11 +147,23 @@ export default function AdminDriversPage() {
           </Avatar>
           <div>
             <p className="font-medium">{row.user?.name ?? 'Unknown'}</p>
-            <p className="text-xs text-muted-foreground">{row.user?.email ?? '—'}</p>
+            <p className="text-xs text-muted-foreground">{row.user?.email ?? (row as any).email ?? '—'}</p>
           </div>
         </div>
       ),
       sortable: true,
+    },
+    {
+      header: 'Debt',
+      accessor: (row) => formatCurrency(Number((row as any).outstanding_debt ?? 0)),
+    },
+    {
+      header: 'Today',
+      accessor: (row) => formatCurrency(Number((row as any).today_earnings ?? 0)),
+    },
+    {
+      header: 'Total Earnings',
+      accessor: (row) => formatCurrency(Number((row as any).total_earnings ?? 0)),
     },
     {
       header: 'Phone',

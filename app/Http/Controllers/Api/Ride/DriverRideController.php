@@ -10,6 +10,7 @@ use App\Services\FareCalculationService;
 use App\Repositories\RideRepository;
 use App\Repositories\DriverRepository;
 use App\Repositories\VehicleTypeRepository;
+use App\Repositories\WalletRepository;
 use App\Models\Notification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class DriverRideController extends Controller
         private RideRepository $rideRepo,
         private DriverRepository $driverRepo,
         private VehicleTypeRepository $vehicleTypeRepo,
+        private WalletRepository $walletRepo,
     ) {}
 
     public function pending(Request $request): JsonResponse
@@ -206,11 +208,6 @@ class DriverRideController extends Controller
 
     public function complete(int $rideId, Request $request): JsonResponse
     {
-        $request->validate([
-            'actual_distance' => 'required|numeric|min:0',
-            'actual_duration' => 'required|integer|min:0',
-        ]);
-
         try {
             $driver = $this->driverRepo->findByUserId($request->user()->id);
             if (!$driver) {
@@ -225,10 +222,69 @@ class DriverRideController extends Controller
                 return response()->json(['success' => false, 'message' => 'This ride is not assigned to you'], 403);
             }
 
+            // Already completed — return 200 with existing data
+            if ($ride->status === \App\Enums\RideStatus::RideCompleted) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Ride already completed',
+                    'data' => new RideResource($ride->load('driver.user', 'vehicleType', 'vehicle', 'payment')),
+                ]);
+            }
+
+            // Backend is source of truth for distance/duration — ignore driver-provided values
+            $actualDistance = (float) ($ride->estimated_distance ?? 0);
+            $actualDuration = (int) ($ride->estimated_duration ?? 0);
+
+            // Wallet balance check before completing
+            if ($ride->payment_method === 'wallet') {
+                $vehicleType = $ride->vehicleType ?? ($ride->vehicle_type_id ? $this->vehicleTypeRepo->findById($ride->vehicle_type_id) : null);
+                if ($vehicleType) {
+                    $estimatedFare = $this->fareCalc->calculateEstimatedFare($vehicleType, $actualDistance, $actualDuration, $ride->vehicle);
+                    $requiredAmount = (float) ($estimatedFare['total_fare'] ?? 0);
+                    $currentBalance = $this->walletRepo->getBalance($ride->rider_id);
+                    if ($currentBalance < $requiredAmount) {
+                        return response()->json([
+                            'success' => false,
+                            'error_code' => 'INSUFFICIENT_WALLET_BALANCE',
+                            'message' => 'Insufficient wallet balance. Please choose cash or top up wallet.',
+                            'data' => [
+                                'current_balance' => $currentBalance,
+                                'required_amount' => $requiredAmount,
+                            ],
+                        ], 402);
+                    }
+                }
+            }
+
+            // Cash validation
+            $cashReceived = $request->input('cash_received');
+            $creditChange = $request->boolean('credit_change', false);
+            if ($ride->payment_method === 'cash' && $cashReceived !== null) {
+                $vehicleType = $ride->vehicleType ?? ($ride->vehicle_type_id ? $this->vehicleTypeRepo->findById($ride->vehicle_type_id) : null);
+                if ($vehicleType) {
+                    $estimatedFare = $this->fareCalc->calculateEstimatedFare($vehicleType, $actualDistance, $actualDuration, $ride->vehicle);
+                    $totalFare = round(max($estimatedFare['total_fare'] ?? 0, 0), 2);
+                    $cashReceived = (float) $cashReceived;
+                    if ($cashReceived < $totalFare) {
+                        return response()->json([
+                            'success' => false,
+                            'error_code' => 'CASH_UNDERPAID',
+                            'message' => 'Cash received is less than total fare. Please collect the full fare.',
+                            'data' => [
+                                'total_fare' => $totalFare,
+                                'cash_received' => $cashReceived,
+                            ],
+                        ], 400);
+                    }
+                }
+            }
+
             $ride = $this->rideService->completeRide(
                 $rideId,
-                $request->input('actual_distance'),
-                $request->input('actual_duration')
+                $actualDistance,
+                $actualDuration,
+                $cashReceived !== null ? (float) $cashReceived : null,
+                $creditChange
             );
 
             $ride->refresh();

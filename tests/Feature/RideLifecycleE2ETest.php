@@ -243,7 +243,7 @@ class RideLifecycleE2ETest extends TestCase
         $payment = $ride->payment;
         $this->assertNotNull($payment);
         $this->assertEquals('completed', $payment->status->value);
-        $this->assertEquals(0, $payment->driver_amount);
+        $this->assertGreaterThan(0, $payment->driver_amount, 'Cash ride driver_amount should reflect earnings');
 
         // 5. No wallet debit for rider (cash ride)
         $riderWallet = $this->walletRepo->findByUser($this->rider->id);

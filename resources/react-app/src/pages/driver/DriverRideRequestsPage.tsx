@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   MapPin, Star, Clock, Timer, X, Check,
 } from 'lucide-react'
@@ -47,9 +47,13 @@ export default function DriverRideRequestsPage() {
   const [acceptedId, setAcceptedId] = useState<string | null>(null)
   const [rejectedId, setRejectedId] = useState<string | null>(null)
 
+  // Fallback polling interval to ensure UI updates
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => {
-    const interval = setInterval(() => refetch(), 5000)
-    return () => clearInterval(interval)
+    pollingRef.current = setInterval(() => { refetch() }, 5000)
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current)
+    }
   }, [refetch])
 
   const pendingRides = (data?.data ?? []).filter(
@@ -109,10 +113,22 @@ export default function DriverRideRequestsPage() {
                       </div>
                     </div>
                   </div>
-                  <RequestTimer
-                    createdAt={ride.createdAt}
-                    onExpire={() => handleExpire(ride.id)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <RequestTimer
+                      createdAt={ride.createdAt}
+                      onExpire={() => handleExpire(ride.id)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mb-3 text-xs">
+                  <span className="text-muted-foreground font-mono">#{ride.bookingId}</span>
+                  <Badge variant={ride.paymentMethod === 'cash' ? 'outline' : 'secondary'} className="text-[10px]">
+                    {ride.paymentMethod === 'wallet' ? 'Wallet' : ride.paymentMethod === 'cash' ? 'Cash' : ride.paymentMethod ?? 'N/A'}
+                  </Badge>
+                  {ride.vehicleType && (
+                    <Badge variant="outline" className="text-[10px]">{ride.vehicleType.name}</Badge>
+                  )}
                 </div>
 
                 <div className="space-y-2 mb-4">

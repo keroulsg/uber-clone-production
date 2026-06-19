@@ -4,8 +4,12 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: (failureCount, error) => {
-        if ((error as any)?.response?.status === 401) return false
-        if ((error as any)?.response?.status === 403) return false
+        const status = (error as any)?.response?.status
+        if (status === 401) return false
+        if (status === 403) return false
+        if (status === 404) return false
+        if (status === 422) return false
+        if (status === 429) return false
         return failureCount < 1
       },
       staleTime: 30000,

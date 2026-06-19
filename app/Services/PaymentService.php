@@ -28,7 +28,7 @@ class PaymentService
         return $this->fareCalc->getCommissionRate();
     }
 
-    public function processPayment(Ride $ride, float $actualDistanceKm, int $actualDurationMin): Payment
+    public function processPayment(Ride $ride, float $actualDistanceKm, int $actualDurationMin, ?float $cashReceived = null, bool $creditChange = false): Payment
     {
         $vehicleType = $ride->vehicleType ?? ($ride->vehicle_type_id ? app(\App\Repositories\VehicleTypeRepository::class)->findById($ride->vehicle_type_id) : null);
         $vehicle = $ride->vehicle;
@@ -44,7 +44,7 @@ class PaymentService
         $commission = round($totalFare * $commissionRate, 2);
         $driverAmount = round($totalFare - $commission, 2);
 
-        $payment = \Illuminate\Support\Facades\DB::transaction(function () use ($ride, $totalFare, $commission, $driverAmount, $commissionRate, $waitingFee) {
+        $payment = \Illuminate\Support\Facades\DB::transaction(function () use ($ride, $totalFare, $commission, $driverAmount, $commissionRate, $waitingFee, $cashReceived, $creditChange) {
             $existingPayment = Payment::where('ride_id', $ride->id)->lockForUpdate()->first();
             if ($existingPayment) {
                 return $existingPayment;
@@ -54,7 +54,7 @@ class PaymentService
                 'ride_id' => $ride->id,
                 'amount' => $totalFare,
                 'platform_fee' => $commission,
-                'driver_amount' => $ride->payment_method === 'cash' ? 0 : $driverAmount,
+                'driver_amount' => $driverAmount,
                 'tax_amount' => 0,
                 'currency' => Setting::where('key', 'default_currency')->value('value') ?? 'EGP',
                 'payment_method' => $ride->payment_method,
@@ -109,6 +109,8 @@ class PaymentService
                     'description' => "Driver earnings for ride #{$ride->id}",
                 ]);
             } else {
+                $changeDue = $cashReceived !== null ? max(0, $cashReceived - $totalFare) : 0;
+
                 LedgerEntry::create([
                     'user_id' => $ride->rider_id,
                     'type' => 'cash_payment',
@@ -117,8 +119,43 @@ class PaymentService
                     'balance_after' => 0,
                     'reference_type' => Ride::class,
                     'reference_id' => $ride->id,
-                    'description' => "Cash ride #{$ride->id}",
+                    'description' => "Cash ride #{$ride->id}" . ($changeDue > 0 ? " (received {$cashReceived})" : ''),
                 ]);
+
+                if ($changeDue > 0 && $creditChange && $ride->rider_id) {
+                    $riderWallet = $this->walletRepo->findByUser($ride->rider_id);
+                    $riderBalanceBefore = $riderWallet ? (float) $riderWallet->balance : 0;
+                    $this->walletRepo->addBalance($ride->rider_id, $changeDue);
+                    $riderWalletAfter = $this->walletRepo->findByUser($ride->rider_id);
+                    $riderBalanceAfter = $riderWalletAfter ? (float) $riderWalletAfter->balance : 0;
+
+                    LedgerEntry::create([
+                        'user_id' => $ride->rider_id,
+                        'type' => 'cash_change_credit',
+                        'amount' => $changeDue,
+                        'balance_before' => $riderBalanceBefore,
+                        'balance_after' => $riderBalanceAfter,
+                        'reference_type' => Ride::class,
+                        'reference_id' => $ride->id,
+                        'description' => "Cash change credit for ride #{$ride->id}",
+                    ]);
+
+                    DriverDebt::create([
+                        'driver_id' => $ride->driver_id,
+                        'ride_id' => $ride->id,
+                        'type' => 'cash_change_liability',
+                        'amount' => $changeDue,
+                    ]);
+
+                    if ($ride->driver) {
+                        Notification::create([
+                            'type' => 'cash_change_liability',
+                            'notifiable_type' => \App\Models\User::class,
+                            'notifiable_id' => $ride->driver->user_id,
+                            'data' => ['ride_id' => $ride->id, 'amount' => $changeDue, 'message' => "Cash change liability of {$changeDue} recorded."],
+                        ]);
+                    }
+                }
             }
 
             DriverDebt::create([

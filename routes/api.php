@@ -18,10 +18,10 @@ use App\Http\Controllers\Api\Admin\AdminRiderController;
 Route::prefix('v1')->group(function () {
 
     // Public routes (rate-limited)
-    Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
-    Route::post('auth/login', [AuthController::class, 'login'])->name('login')->middleware('throttle:10,1');
-    Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:3,1');
-    Route::post('auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
+    Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1,register');
+    Route::post('auth/login', [AuthController::class, 'login'])->name('login')->middleware('throttle:10,1,login');
+    Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:3,1,forgot-password');
+    Route::post('auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1,reset-password');
     Route::post('auth/send-otp', [AuthController::class, 'sendOtp']);
     Route::post('auth/verify-otp', [AuthController::class, 'verifyOtp']);
 
@@ -42,7 +42,7 @@ Route::prefix('v1')->group(function () {
     });
 
     // Authenticated routes
-    Route::middleware(['auth:sanctum', 'throttle:100,1'])->group(function () {
+    Route::middleware(['auth:sanctum', 'throttle:200,1,api'])->group(function () {
 
         // Auth
         Route::prefix('auth')->group(function () {
@@ -93,6 +93,7 @@ Route::prefix('v1')->group(function () {
             Route::post('submit-verification', [DriverController::class, 'submitVerification']);
             Route::get('payout', [DriverController::class, 'payout']);
             Route::post('payout', [DriverController::class, 'updatePayout']);
+            Route::get('wallet', [DriverController::class, 'wallet']);
 
             // Driver Vehicles
             Route::prefix('vehicles')->group(function () {

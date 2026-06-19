@@ -27,12 +27,12 @@ class RideRepository
 
     public function findByRider(int $riderId): Collection
     {
-        return Ride::where('rider_id', $riderId)->latest()->get();
+        return Ride::with('driver.user', 'vehicle', 'vehicleType')->where('rider_id', $riderId)->latest()->get();
     }
 
     public function findByDriver(int $driverId): Collection
     {
-        return Ride::where('driver_id', $driverId)->latest()->get();
+        return Ride::with('rider', 'vehicle', 'vehicleType', 'payment')->where('driver_id', $driverId)->latest()->get();
     }
 
     public function findActiveByRider(int $riderId): ?Ride

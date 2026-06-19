@@ -74,3 +74,6 @@ export const updateDriverPayout = (
   data: Partial<PayoutInfo>
 ): Promise<ApiResponse<PayoutInfo>> =>
   apiClient.post('/driver/payout', data).then((r) => r.data)
+
+export const getDriverWallet = (): Promise<ApiResponse<unknown>> =>
+  apiClient.get('/driver/wallet').then((r) => r.data)

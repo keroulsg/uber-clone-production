@@ -17,6 +17,11 @@ import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { RouteMap } from '@/components/common/RouteMap'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
+import { RatingStars } from '@/components/common/RatingStars'
+import { Input } from '@/components/ui/input'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
@@ -25,6 +30,7 @@ import {
 import { LoadingScreen } from '@/components/common/LoadingScreen'
 import { ErrorState } from '@/components/common/ErrorState'
 import { useRideBroadcast } from '@/hooks/useRideBroadcast'
+import { useRateDriver } from '@/hooks/useRatings'
 import { MapService } from '@/maps/MapService'
 
 const statusSteps = [
@@ -56,6 +62,12 @@ export default function RiderCurrentRidePage() {
   const [driverDestDistance, setDriverDestDistance] = useState<number | null>(null)
   const [driverDestEta, setDriverDestEta] = useState<number | null>(null)
   const [routeError, setRouteError] = useState(false)
+  const [trackingTimeout, setTrackingTimeout] = useState(false)
+  const [rateDialogOpen, setRateDialogOpen] = useState(false)
+  const [ratingValue, setRatingValue] = useState(0)
+  const [ratingComment, setRatingComment] = useState('')
+  const [ratingError, setRatingError] = useState('')
+  const rateDriver = useRateDriver()
 
   useRideBroadcast(currentRide?.id ?? null, {
     onAccepted: useCallback(() => refetch(), [refetch]),
@@ -133,6 +145,16 @@ export default function RiderCurrentRidePage() {
     }
   }, [isStarted, hasDriverPos, driverPosition?.lat, driverPosition?.lng, currentRide?.destination.lat, currentRide?.destination.lng])
 
+  // "Calculating..." timeout: show fallback if no position after 15s
+  useEffect(() => {
+    setTrackingTimeout(false)
+    if (!hasDriver || isTerminal) return
+    const t = setTimeout(() => {
+      if (!hasDriverPos) setTrackingTimeout(true)
+    }, 15000)
+    return () => clearTimeout(t)
+  }, [hasDriver, isTerminal, hasDriverPos])
+
   useEffect(() => {
     if (currentRide && currentRide.femaleDriverPreferred && !currentRide.femaleDriverUnavailable && !currentRide.fallbackToAnyDriverAccepted && currentRide.status === 'searching_driver') {
       const elapsed = (Date.now() - searchStartTime) / 1000 / 60
@@ -157,6 +179,26 @@ export default function RiderCurrentRidePage() {
     if (currentRide) {
       cancelRide.mutate({ id: currentRide.id, reason: 'female_driver_unavailable' }, { onSuccess: () => { setFallbackOpen(false); refetch() } })
     }
+  }
+
+  const handleRateSubmit = () => {
+    if (ratingValue === 0) {
+      setRatingError('Please select a rating')
+      return
+    }
+    if (!currentRide) return
+    rateDriver.mutate(
+      { ride_id: currentRide.id, rating: ratingValue, comment: ratingComment },
+      {
+        onSuccess: () => {
+          setRateDialogOpen(false)
+          setRatingValue(0)
+          setRatingComment('')
+          setRatingError('')
+          refetch()
+        },
+      }
+    )
   }
 
   const routeType = isDriverAssigned ? 'driver-pickup' : isStarted ? 'driver-dest' : 'pickup-dest'
@@ -333,7 +375,7 @@ export default function RiderCurrentRidePage() {
               </Button>
             </div>
             {rideVehicle && (
-              <div className="flex flex-wrap items-center gap-2 mt-2 p-2 rounded-lg bg-muted text-sm">
+              <div className="flex flex-wrap items-center gap-3 mt-2 p-3 rounded-lg bg-muted text-sm">
                 {rideVehicle.vehicleType?.slug === 'motorcycle' ? <Bike className="h-4 w-4 text-muted-foreground" /> : <Car className="h-4 w-4 text-muted-foreground" />}
                 <span className="font-medium">{rideVehicle.make} {rideVehicle.model}</span>
                 {rideVehicle.color && (
@@ -342,10 +384,15 @@ export default function RiderCurrentRidePage() {
                     {rideVehicle.color}
                   </span>
                 )}
-                <Badge variant="secondary" className="text-xs ml-auto">{rideVehicle.licensePlate}</Badge>
                 {rideVehicle.vehicleType?.name && (
-                  <span className="text-xs text-muted-foreground w-full mt-0.5">{rideVehicle.vehicleType.name}</span>
+                  <span className="text-xs text-muted-foreground">{rideVehicle.vehicleType.name}</span>
                 )}
+              </div>
+            )}
+            {rideVehicle?.licensePlate && (
+              <div className="mt-2 p-3 rounded-lg bg-primary/5 border-2 border-primary/20 text-center">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">License Plate</p>
+                <p className="text-xl font-bold text-primary tracking-[0.2em]">{rideVehicle.licensePlate}</p>
               </div>
             )}
           </CardContent>
@@ -361,6 +408,8 @@ export default function RiderCurrentRidePage() {
                 <p className="text-sm text-muted-foreground">Driver is coming to you</p>
                 {driverPickupEta != null ? (
                   <p className="text-2xl font-bold">{formatDuration(driverPickupEta)}</p>
+                ) : trackingTimeout ? (
+                  <p className="text-base font-medium text-muted-foreground">Tracking unavailable</p>
                 ) : (
                   <p className="text-base font-medium">Calculating...</p>
                 )}
@@ -416,6 +465,8 @@ export default function RiderCurrentRidePage() {
                 <p className="text-sm text-muted-foreground">En route to destination</p>
                 {driverDestEta != null ? (
                   <p className="text-2xl font-bold">{formatDuration(driverDestEta)}</p>
+                ) : trackingTimeout ? (
+                  <p className="text-base font-medium text-muted-foreground">Tracking unavailable</p>
                 ) : (
                   <p className="text-base font-medium">Calculating...</p>
                 )}
@@ -432,10 +483,10 @@ export default function RiderCurrentRidePage() {
               <span>Fare: {formatCurrency(currentRide.estimatedFare)}</span>
             </div>
             {rideVehicle && (
-              <div className="text-xs text-muted-foreground mt-1">
-                {rideVehicle.make} {rideVehicle.model}
-                {rideVehicle.color && <span> &middot; {rideVehicle.color}</span>}
-                <span> &middot; {rideVehicle.licensePlate}</span>
+              <div className="text-xs mt-1 flex items-center gap-2">
+                <span className="text-muted-foreground">{rideVehicle.make} {rideVehicle.model}</span>
+                {rideVehicle.color && <span className="text-muted-foreground"> &middot; {rideVehicle.color}</span>}
+                <span className="font-bold text-foreground tracking-wider bg-muted px-1.5 py-0.5 rounded">{rideVehicle.licensePlate}</span>
               </div>
             )}
             {routeError && (
@@ -476,7 +527,7 @@ export default function RiderCurrentRidePage() {
             )}
             <div className="flex gap-2 pt-2">
               {!currentRide.driverRated && (
-                <Button variant="outline" className="flex-1 gap-2" onClick={() => navigate(`/rider/rate-driver/${currentRide.driver?.id ?? ''}?rideId=${currentRide.id}`)}>
+                <Button variant="outline" className="flex-1 gap-2" onClick={() => setRateDialogOpen(true)}>
                   <Star className="h-4 w-4" />
                   Rate Driver
                 </Button>
@@ -549,6 +600,34 @@ export default function RiderCurrentRidePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-center">Rate {currentRide?.driver?.user?.name ?? 'Driver'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-center">
+              <RatingStars
+                rating={ratingValue}
+                size="lg"
+                interactive
+                onChange={(value) => { setRatingValue(value); setRatingError('') }}
+              />
+            </div>
+            <Input
+              placeholder="Leave a comment (optional)"
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              maxLength={500}
+            />
+            {ratingError && <p className="text-sm text-destructive text-center">{ratingError}</p>}
+            <Button className="w-full" onClick={handleRateSubmit} disabled={ratingValue === 0 || rateDriver.isPending}>
+              {rateDriver.isPending ? 'Submitting...' : 'Submit Rating'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -53,7 +53,8 @@ export default function AdminDriverProfilePage() {
   const result = data?.data as any
   const driver: Driver | null = result?.driver ?? null
   const performance = result?.performance ?? {}
-  const totalDebt = result?.total_debt ?? 0
+  const companyDues = result?.company_dues ?? {}
+  const recentFinanceRows = result?.recent_finance_rows ?? []
   const warnings = result?.warnings ?? []
   const penalties = result?.penalties ?? []
   const complaints = result?.complaints ?? []
@@ -239,18 +240,78 @@ export default function AdminDriverProfilePage() {
 
       {/* Performance */}
       <Card>
-        <CardHeader><CardTitle>Performance</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Driver Summary</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div><p className="text-muted-foreground">Total Rides</p><p className="font-medium text-lg">{performance.total_rides ?? 0}</p></div>
             <div><p className="text-muted-foreground">Completed</p><p className="font-medium text-lg">{performance.completed_rides ?? 0}</p></div>
+            <div><p className="text-muted-foreground">Today Completed</p><p className="font-medium text-lg">{performance.today_completed_rides ?? 0}</p></div>
             <div><p className="text-muted-foreground">Cancelled</p><p className="font-medium text-lg">{performance.cancelled_rides ?? 0}</p></div>
             <div><p className="text-muted-foreground">Completion Rate</p><p className="font-medium text-lg">{performance.completion_rate ?? 0}%</p></div>
             <div><p className="text-muted-foreground">Rating</p><p className="font-medium text-lg">{(performance.average_rating ?? 0).toFixed(1)} ★</p></div>
-            <div><p className="text-muted-foreground">Earnings</p><p className="font-medium text-lg">{formatCurrency(performance.total_earnings ?? 0)}</p></div>
-            <div><p className="text-muted-foreground">Debt</p><p className="font-medium text-lg text-amber-600">{formatCurrency(totalDebt)}</p></div>
+            <div><p className="text-muted-foreground">Today Earnings</p><p className="font-medium text-lg">{formatCurrency(performance.today_earnings ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Weekly Earnings</p><p className="font-medium text-lg">{formatCurrency(performance.weekly_earnings ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Monthly Earnings</p><p className="font-medium text-lg">{formatCurrency(performance.monthly_earnings ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Total Earnings</p><p className="font-medium text-lg">{formatCurrency(performance.total_earnings ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Cash Collected</p><p className="font-medium text-lg">{formatCurrency(performance.total_cash_collected ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Wallet Revenue</p><p className="font-medium text-lg">{formatCurrency(performance.wallet_revenue ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Cash Rides</p><p className="font-medium text-lg">{performance.cash_rides_count ?? 0}</p></div>
+            <div><p className="text-muted-foreground">Wallet Rides</p><p className="font-medium text-lg">{performance.wallet_rides_count ?? 0}</p></div>
             <div><p className="text-muted-foreground">Warnings</p><p className="font-medium text-lg">{warnings?.length ?? 0}</p></div>
+            <div><p className="text-muted-foreground">Penalties</p><p className="font-medium text-lg">{penalties?.length ?? 0}</p></div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Company Dues */}
+      <Card className="border-amber-200">
+        <CardHeader><CardTitle className="text-amber-700">Company Dues</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div><p className="text-muted-foreground">Total Outstanding Debt</p><p className="font-bold text-amber-700 text-lg">{formatCurrency(companyDues.total_debt ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Unpaid Commission</p><p className="font-medium">{formatCurrency(companyDues.unpaid_commission ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Cash Change Liability</p><p className="font-medium">{formatCurrency(companyDues.cash_change_liability ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Today Commission Due</p><p className="font-medium">{formatCurrency(companyDues.today_commission_due ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Weekly Commission Due</p><p className="font-medium">{formatCurrency(companyDues.weekly_commission_due ?? 0)}</p></div>
+            <div><p className="text-muted-foreground">Last Debt Created</p><p className="font-medium">{companyDues.last_debt_created_at ? formatDate(companyDues.last_debt_created_at) : '—'}</p></div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">Cash rides create commission debt. Wallet rides do not.</p>
+        </CardContent>
+      </Card>
+
+      {/* Recent Finance Rows */}
+      <Card>
+        <CardHeader><CardTitle>Recent Financial Transactions</CardTitle></CardHeader>
+        <CardContent>
+          {recentFinanceRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No completed payments yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentFinanceRows.map((row: any) => (
+                <div key={row.payment_id} className="flex items-center justify-between text-sm p-2 rounded border">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-muted-foreground">{row.booking_id}</span>
+                      <span className="capitalize text-xs px-1.5 py-0.5 rounded bg-muted">{row.payment_method}</span>
+                      <span className="text-xs text-muted-foreground">{formatDate(row.date)}</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs">
+                      <span>Fare: {formatCurrency(row.total_fare)}</span>
+                      <span className="text-muted-foreground">Commission: {formatCurrency(row.commission)}</span>
+                      <span className="text-emerald-600">Payout: {formatCurrency(row.driver_payout)}</span>
+                    </div>
+                  </div>
+                  <div className="text-right text-xs">
+                    {row.has_debt && (
+                      <span className={row.debt_status === 'paid' ? 'text-emerald-600' : 'text-amber-600'}>
+                        {row.debt_status === 'paid' ? 'Debt Paid' : 'Debt Owed'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

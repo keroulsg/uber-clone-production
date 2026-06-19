@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Eye, Calendar, ArrowUpDown, Filter,
+  Eye, Calendar, ArrowUpDown, Filter, Star,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getRideHistory } from '@/api/drivers'
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { RatingStars } from '@/components/common/RatingStars'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -22,6 +23,7 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingScreen } from '@/components/common/LoadingScreen'
 import { ErrorState } from '@/components/common/ErrorState'
+import { useRateRider } from '@/hooks/useRatings'
 import type { RideBrief, Ride } from '@/types'
 
 const statusOptions = [
@@ -39,6 +41,11 @@ export default function DriverRideHistoryPage() {
   const [dateTo, setDateTo] = useState('')
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [rateDialogOpen, setRateDialogOpen] = useState(false)
+  const [ratingValue, setRatingValue] = useState(0)
+  const [ratingComment, setRatingComment] = useState('')
+  const [ratingError, setRatingError] = useState('')
+  const rateRider = useRateRider()
 
   const params = useMemo(
     () => ({
@@ -59,6 +66,26 @@ export default function DriverRideHistoryPage() {
   const response = data?.data
   const rides = (response?.data ?? []) as RideBrief[]
   const meta = response?.meta ?? { currentPage: 1, lastPage: 1, total: 0, perPage: 10, from: 0, to: 0 }
+
+  const handleRateSubmit = () => {
+    if (ratingValue === 0) {
+      setRatingError('Please select a rating')
+      return
+    }
+    if (!selectedRide) return
+    rateRider.mutate(
+      { ride_id: selectedRide.id, rating: ratingValue, comment: ratingComment },
+      {
+        onSuccess: () => {
+          setRateDialogOpen(false)
+          setRatingValue(0)
+          setRatingComment('')
+          setRatingError('')
+          refetch()
+        },
+      }
+    )
+  }
 
   const columns = [
     {
@@ -224,8 +251,45 @@ export default function DriverRideHistoryPage() {
                 <p>Created: {formatDate(selectedRide.createdAt)}</p>
                 {selectedRide.completedAt && <p>Completed: {formatDate(selectedRide.completedAt)}</p>}
               </div>
+              {selectedRide.status === 'ride_completed' && !selectedRide.riderRated && (
+                <>
+                  <Separator />
+                  <Button variant="outline" className="w-full gap-2" onClick={() => { setDetailOpen(false); setRateDialogOpen(true) }}>
+                    <Star className="h-4 w-4" />
+                    Rate Rider
+                  </Button>
+                </>
+              )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-center">Rate {selectedRide?.rider?.name ?? 'Rider'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-center">
+              <RatingStars
+                rating={ratingValue}
+                size="lg"
+                interactive
+                onChange={(value) => { setRatingValue(value); setRatingError('') }}
+              />
+            </div>
+            <Input
+              placeholder="Leave a comment (optional)"
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              maxLength={500}
+            />
+            {ratingError && <p className="text-sm text-destructive text-center">{ratingError}</p>}
+            <Button className="w-full" onClick={handleRateSubmit} disabled={ratingValue === 0 || rateRider.isPending}>
+              {rateRider.isPending ? 'Submitting...' : 'Submit Rating'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
