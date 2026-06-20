@@ -7,6 +7,7 @@ use App\Http\Requests\RateDriverRequest;
 use App\Http\Requests\RateRiderRequest;
 use App\Http\Resources\RatingResource;
 use App\Services\RatingService;
+use App\Services\FeatureFlagService;
 use Illuminate\Http\JsonResponse;
 
 class RatingController extends Controller
@@ -17,6 +18,10 @@ class RatingController extends Controller
 
     public function rateDriver(RateDriverRequest $request): JsonResponse
     {
+        if (!app(FeatureFlagService::class)->isEnabled('ratings')) {
+            return response()->json(['success' => false, 'message' => 'Ratings are currently disabled'], 403);
+        }
+
         $rating = $this->ratingService->rateDriver(
             $request->input('ride_id'),
             $request->user()->id,
@@ -33,6 +38,10 @@ class RatingController extends Controller
 
     public function rateRider(RateRiderRequest $request): JsonResponse
     {
+        if (!app(FeatureFlagService::class)->isEnabled('ratings')) {
+            return response()->json(['success' => false, 'message' => 'Ratings are currently disabled'], 403);
+        }
+
         $rating = $this->ratingService->rateRider(
             $request->input('ride_id'),
             $request->user()->id,

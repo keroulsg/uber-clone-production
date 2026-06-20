@@ -4,7 +4,11 @@ namespace App\Http\Controllers\Api\Report;
 
 use App\Http\Controllers\Controller;
 use App\Services\ReportService;
+use App\Models\Ride;
+use App\Models\Driver;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ReportController extends Controller
 {
@@ -36,6 +40,19 @@ class ReportController extends Controller
         ]);
     }
 
+    public function custom(Request $request): JsonResponse
+    {
+        $request->validate([
+            'from' => 'required|date',
+            'to' => 'required|date|after_or_equal:from',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->reportService->custom($request->input('from'), $request->input('to')),
+        ]);
+    }
+
     public function revenue(): JsonResponse
     {
         return response()->json([
@@ -44,11 +61,21 @@ class ReportController extends Controller
         ]);
     }
 
+    public function charts(Request $request): JsonResponse
+    {
+        $period = $request->input('period', 'daily');
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->reportService->charts($period),
+        ]);
+    }
+
     public function rides(): JsonResponse
     {
         return response()->json([
             'success' => true,
-            'data' => \App\Models\Ride::with('rider', 'driver.user', 'vehicleType')
+            'data' => Ride::with('rider', 'driver.user', 'vehicleType')
                 ->latest()
                 ->paginate(20),
         ]);
@@ -58,7 +85,7 @@ class ReportController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data' => \App\Models\Driver::with('user', 'vehicles')
+            'data' => Driver::with('user', 'vehicles')
                 ->latest()
                 ->paginate(20),
         ]);
@@ -68,7 +95,23 @@ class ReportController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data' => \App\Models\User::latest()->paginate(20),
+            'data' => User::latest()->paginate(20),
+        ]);
+    }
+
+    public function export(Request $request): JsonResponse
+    {
+        $request->validate([
+            'from' => 'required|date',
+            'to' => 'required|date|after_or_equal:from',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->reportService->export(
+                $request->input('from'),
+                $request->input('to')
+            ),
         ]);
     }
 }

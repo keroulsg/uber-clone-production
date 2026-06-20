@@ -36,13 +36,25 @@ export default function AdminReportsPage() {
   const chartData = chartRes?.data
   const stats = statsRes?.data as any
 
+  const chartDataForDisplay = (() => {
+    const cd = chartData as { labels: string[]; datasets?: { label: string; data: number[] }[] } | undefined
+    const labels = cd?.labels ?? []
+    const datasets = cd?.datasets ?? []
+    if (labels.length === 0) return []
+    return labels.map((label: string, i: number) => {
+      const point: Record<string, string | number> = { label }
+      datasets.forEach((ds: { label: string; data: number[] }) => { point[ds.label] = ds.data[i] ?? 0 })
+      return point
+    })
+  })()
+
   const handleExportCSV = () => {
-    if (!Array.isArray(chartData) || chartData.length === 0) {
+    if (chartDataForDisplay.length === 0) {
       toast.error('No data to export')
       return
     }
-    const headers = Object.keys(chartData[0] ?? {})
-    const rows = chartData.map((row: any) => headers.map((h) => row[h]))
+    const headers = Object.keys(chartDataForDisplay[0] ?? {})
+    const rows = chartDataForDisplay.map((row: any) => headers.map((h: string) => row[h]))
     const csv = [headers.join(','), ...rows.map((r: any[]) => r.map((c: any) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -109,49 +121,73 @@ export default function AdminReportsPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title="Total Revenue"
-                value={formatCurrency(stats?.revenue ?? 0)}
+                value={formatCurrency(stats?.totalRevenue ?? 0)}
                 icon={Download}
                 variant="green"
               />
               <StatCard
-                title="Total Rides"
-                value={stats?.rides ?? 0}
+                title="Today Revenue"
+                value={formatCurrency(stats?.todayRevenue ?? 0)}
                 icon={Calendar}
                 variant="blue"
               />
               <StatCard
-                title="Active Users"
-                value={stats?.users ?? 0}
+                title="Total Rides"
+                value={stats?.totalRides ?? 0}
+                icon={Download}
+                variant="purple"
+              />
+              <StatCard
+                title="Total Drivers"
+                value={stats?.totalDrivers ?? 0}
+                icon={Download}
+                variant="yellow"
+              />
+              <StatCard
+                title="Total Users"
+                value={stats?.totalUsers ?? 0}
                 icon={Download}
                 variant="purple"
               />
               <StatCard
                 title="Active Drivers"
-                value={stats?.drivers ?? 0}
+                value={stats?.activeDrivers ?? 0}
                 icon={Download}
-                variant="yellow"
+                variant="green"
+              />
+              <StatCard
+                title="Weekly Revenue"
+                value={formatCurrency(stats?.weeklyRevenue ?? 0)}
+                icon={Download}
+                variant="blue"
+              />
+              <StatCard
+                title="Monthly Revenue"
+                value={formatCurrency(stats?.monthlyRevenue ?? 0)}
+                icon={Download}
+                variant="purple"
               />
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
               <DashboardCharts
                 type="line"
-                data={Array.isArray(chartData) ? chartData : []}
+                data={chartDataForDisplay.map((d: any) => ({ label: d.label, Revenue: d.Revenue ?? d.revenue ?? 0 }))}
                 config={{ title: 'Revenue', xAxisKey: 'label', height: 300 }}
               />
               <DashboardCharts
                 type="bar"
-                data={Array.isArray(chartData) ? chartData : []}
+                data={chartDataForDisplay.map((d: any) => ({ label: d.label, Rides: d.Rides ?? d.rides ?? 0 }))}
                 config={{ title: 'Rides', xAxisKey: 'label', height: 300 }}
               />
               <DashboardCharts
                 type="area"
-                data={Array.isArray(chartData) ? chartData : []}
+                data={chartDataForDisplay.map((d: any) => ({ label: d.label, Users: d.Users ?? d.users ?? 0 }))}
                 config={{ title: 'Users', xAxisKey: 'label', height: 300 }}
               />
               <DashboardCharts
                 type="line"
-                data={Array.isArray(chartData) ? chartData : []}
+                data={chartDataForDisplay.map((d: any) => ({ label: d.label, Drivers: d.Drivers ?? d.drivers ?? 0 }))}
                 config={{ title: 'Drivers', xAxisKey: 'label', height: 300 }}
               />
             </div>

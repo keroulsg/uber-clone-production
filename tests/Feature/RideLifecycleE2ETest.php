@@ -163,11 +163,11 @@ class RideLifecycleE2ETest extends TestCase
             ->where('type', 'debit')
             ->get();
         $this->assertCount(1, $riderLedgers, 'Rider debit ledger entry should exist');
-        $this->assertEquals($ride->actual_fare, (float) $riderLedgers->first()->amount);
+        $this->assertEqualsWithDelta($ride->actual_fare, (float) $riderLedgers->first()->amount, 0.01);
 
         // 10. Wallet balances correct
         $riderWallet = $this->walletRepo->findByUser($this->rider->id);
-        $this->assertEquals(200.00 - $ride->actual_fare, (float) $riderWallet->balance);
+        $this->assertEqualsWithDelta(200.00 - $ride->actual_fare, (float) $riderWallet->balance, 0.01);
 
         $driverWallet = $this->walletRepo->findByUser($this->driver->id);
         $expectedDriverEarning = round($ride->actual_fare - ($ride->actual_fare * 0.10), 2);

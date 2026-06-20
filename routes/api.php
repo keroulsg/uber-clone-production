@@ -14,6 +14,9 @@ use App\Http\Controllers\Api\Report\ReportController;
 use App\Http\Controllers\Api\Admin\AdminController;
 use App\Http\Controllers\Api\Admin\AdminDriverController;
 use App\Http\Controllers\Api\Admin\AdminRiderController;
+use App\Http\Controllers\Api\Settlement\DriverSettlementController;
+use App\Http\Controllers\Api\Settlement\AdminSettlementController;
+use App\Http\Controllers\Api\Admin\AdminFeatureController;
 
 Route::prefix('v1')->group(function () {
 
@@ -95,6 +98,10 @@ Route::prefix('v1')->group(function () {
             Route::post('payout', [DriverController::class, 'updatePayout']);
             Route::get('wallet', [DriverController::class, 'wallet']);
 
+            // Driver Settlements
+            Route::get('settlements', [DriverSettlementController::class, 'index']);
+            Route::post('settlements', [DriverSettlementController::class, 'store']);
+
             // Driver Vehicles
             Route::prefix('vehicles')->group(function () {
                 Route::get('/', [VehicleController::class, 'index']);
@@ -144,10 +151,13 @@ Route::prefix('v1')->group(function () {
             Route::get('daily', [ReportController::class, 'daily']);
             Route::get('weekly', [ReportController::class, 'weekly']);
             Route::get('monthly', [ReportController::class, 'monthly']);
+            Route::get('custom', [ReportController::class, 'custom']);
             Route::get('revenue', [ReportController::class, 'revenue']);
+            Route::get('charts', [ReportController::class, 'charts']);
             Route::get('rides', [ReportController::class, 'rides']);
             Route::get('drivers', [ReportController::class, 'drivers']);
             Route::get('users', [ReportController::class, 'users']);
+            Route::get('export', [ReportController::class, 'export']);
         });
 
         // Admin
@@ -158,12 +168,18 @@ Route::prefix('v1')->group(function () {
             Route::get('activities', [AdminController::class, 'recentActivities']);
             Route::get('settings', [AdminController::class, 'settings']);
             Route::post('settings', [AdminController::class, 'updateSetting']);
+            Route::get('features', [AdminFeatureController::class, 'index']);
+            Route::post('features/{code}', [AdminFeatureController::class, 'update']);
             Route::get('audit-logs', [AdminController::class, 'auditLogs']);
             Route::get('users', [AdminController::class, 'users']);
             Route::get('rides', [AdminController::class, 'rides']);
             Route::get('rides/{id}', [AdminController::class, 'rideDetail']);
             Route::get('payments', [AdminController::class, 'payments']);
             Route::get('payments/{id}', [AdminController::class, 'paymentDetail']);
+            Route::get('settlements', [AdminSettlementController::class, 'index']);
+            Route::get('settlements/{id}', [AdminSettlementController::class, 'show']);
+            Route::post('settlements/{id}/approve', [AdminSettlementController::class, 'approve']);
+            Route::post('settlements/{id}/reject', [AdminSettlementController::class, 'reject']);
             Route::get('support-tickets', [AdminController::class, 'supportTickets']);
             Route::get('users/{id}/ban-history', [AdminController::class, 'banHistory']);
 
@@ -188,6 +204,7 @@ Route::prefix('v1')->group(function () {
             Route::post('drivers/{id}/penalties', [AdminDriverController::class, 'storePenalty']);
             Route::get('drivers/{id}/rides', [AdminDriverController::class, 'rides']);
             Route::get('drivers/{id}/payments', [AdminDriverController::class, 'payments']);
+            Route::get('drivers/{id}/settlements', [AdminSettlementController::class, 'driverSettlements']);
 
             // Riders
             Route::get('riders', [AdminRiderController::class, 'index']);

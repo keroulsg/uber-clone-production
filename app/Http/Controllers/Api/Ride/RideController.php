@@ -9,6 +9,7 @@ use App\Http\Resources\RideResource;
 use App\Http\Resources\RideBriefResource;
 use App\Services\RideService;
 use App\Services\FareCalculationService;
+use App\Services\FeatureFlagService;
 use App\Repositories\RideRepository;
 use App\Repositories\VehicleTypeRepository;
 use App\Repositories\DriverRepository;
@@ -59,6 +60,15 @@ class RideController extends Controller
     {
         $rider = Rider::where('user_id', $request->user()->id)->firstOrFail();
         $dto = CreateRideDTO::fromRequest($request->validated(), $request->user()->id);
+
+        $paymentMethod = $dto->paymentMethod ?? 'wallet';
+        $featureService = app(FeatureFlagService::class);
+        if ($paymentMethod === 'cash' && !$featureService->isEnabled('cash_payments')) {
+            return response()->json(['success' => false, 'message' => 'Cash payments are currently disabled'], 403);
+        }
+        if ($paymentMethod === 'wallet' && !$featureService->isEnabled('wallet_payments')) {
+            return response()->json(['success' => false, 'message' => 'Wallet payments are currently disabled'], 403);
+        }
 
         $vehicleType = $this->vehicleTypeRepo->findById($dto->vehicleTypeId);
         if (!$vehicleType) {
@@ -185,6 +195,8 @@ class RideController extends Controller
             'pickup_longitude' => 'required|numeric',
             'destination_latitude' => 'required|numeric',
             'destination_longitude' => 'required|numeric',
+            'distance' => 'nullable|numeric|min:0',
+            'duration' => 'nullable|integer|min:0',
         ]);
 
         $vehicleType = $this->vehicleTypeRepo->findById($request->input('vehicle_type_id'));
@@ -193,18 +205,24 @@ class RideController extends Controller
             return response()->json(['success' => false, 'message' => 'Vehicle type not found'], 404);
         }
 
-        $distance = $this->calculateDistance(
-            $request->input('pickup_latitude'),
-            $request->input('pickup_longitude'),
-            $request->input('destination_latitude'),
-            $request->input('destination_longitude')
-        );
+        $distance = $request->input('distance');
+        if ($distance === null) {
+            $distance = $this->calculateDistance(
+                $request->input('pickup_latitude'),
+                $request->input('pickup_longitude'),
+                $request->input('destination_latitude'),
+                $request->input('destination_longitude')
+            );
+        }
 
         if ($distance > 80) {
             return response()->json(['success' => false, 'message' => 'Pickup and destination are too far apart for a local trip'], 422);
         }
 
-        $duration = (int) ($distance / 40 * 60); // assume 40 km/h avg speed
+        $duration = $request->input('duration');
+        if ($duration === null) {
+            $duration = (int) ($distance / 40 * 60);
+        }
 
         $fare = $this->fareCalc->calculateEstimatedFare($vehicleType, $distance, $duration);
 

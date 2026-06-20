@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, XCircle, PauseCircle, PlayCircle,
-  AlertTriangle, DollarSign, Shield, MessageSquare, Eye, Ban, Unlock,
+  AlertTriangle, DollarSign, Shield, MessageSquare, Eye, Ban, Unlock, Loader2, Landmark, Check, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -11,6 +11,7 @@ import {
   useAddDriverWarning, useAddDriverPenalty,
   useBlockDriver, useUnblockDriver, useBanHistory,
 } from '@/hooks/useAdmin'
+import { getDriverSettlements, approveSettlement, rejectSettlement } from '@/api/admin'
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
 import { PageHeader } from '@/components/common/PageHeader'
 import { StatusBadge } from '@/components/common/StatusBadge'
@@ -59,9 +60,19 @@ export default function AdminDriverProfilePage() {
   const penalties = result?.penalties ?? []
   const complaints = result?.complaints ?? []
   const recentRides = result?.recent_rides ?? []
+  const [settlements, setSettlements] = useState<any[]>([])
+  const [settlementsLoading, setSettlementsLoading] = useState(false)
 
   const { data: banHistoryData } = useBanHistory(driver?.user?.id ?? '')
   const banHistory = (banHistoryData as any)?.data?.history ?? []
+
+  useEffect(() => {
+    if (!driver?.id) return
+    setSettlementsLoading(true)
+    getDriverSettlements(driver.id).then((res: any) => {
+      setSettlements(Array.isArray(res.data) ? res.data : [])
+    }).catch(() => {}).finally(() => setSettlementsLoading(false))
+  }, [driver?.id])
 
   const handleApprove = async () => {
     if (!driver) return
@@ -308,6 +319,55 @@ export default function AdminDriverProfilePage() {
                       </span>
                     )}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Settlement Requests */}
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Landmark className="h-4 w-4" /> Settlement Requests</CardTitle></CardHeader>
+        <CardContent>
+          {settlementsLoading ? (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          ) : settlements.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No settlement requests.</p>
+          ) : (
+            <div className="space-y-2">
+              {settlements.map((s: any) => (
+                <div key={s.id} className="flex items-center justify-between text-sm p-3 rounded-lg border">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{formatCurrency(s.amount)}</span>
+                      <Badge className={s.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : s.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}>
+                        {s.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {s.method?.replace(/_/g, ' ')} · {formatDate(s.created_at)}
+                      {s.reference && <> · Ref: {s.reference}</>}
+                    </p>
+                    {s.note && <p className="text-xs text-muted-foreground mt-1">{s.note}</p>}
+                    {s.rejection_reason && <p className="text-xs text-red-500 mt-1">Reason: {s.rejection_reason}</p>}
+                  </div>
+                  {s.status === 'pending' && (
+                    <div className="flex gap-1 ml-2">
+                      <Button size="sm" variant="default" className="h-8 gap-1" onClick={async () => {
+                        try { await approveSettlement(s.id); toast.success('Settlement approved'); const res = await getDriverSettlements(driver!.id); setSettlements(Array.isArray(res.data) ? res.data : []) } catch (e: any) { toast.error(e?.response?.data?.message || 'Failed') }
+                      }}>
+                        <Check className="h-3 w-3" /> Approve
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 gap-1 text-red-500" onClick={async () => {
+                        const reason = window.prompt('Rejection reason:')
+                        if (!reason) return
+                        try { await rejectSettlement(s.id, reason); toast.success('Settlement rejected'); const res = await getDriverSettlements(driver!.id); setSettlements(Array.isArray(res.data) ? res.data : []) } catch (e: any) { toast.error(e?.response?.data?.message || 'Failed') }
+                      }}>
+                        <X className="h-3 w-3" /> Reject
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

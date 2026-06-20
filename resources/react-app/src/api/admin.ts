@@ -95,6 +95,24 @@ export const getDriverRides = (id: string, params?: Record<string, unknown>): Pr
 export const getDriverPayments = (id: string, params?: Record<string, unknown>): Promise<ApiResponse<PaginatedResponse<Payment>>> =>
   apiClient.get(`/admin/drivers/${id}/payments`, { params }).then((r) => r.data)
 
+export const getDriverSettlements = (id: string): Promise<ApiResponse<unknown>> =>
+  apiClient.get(`/admin/drivers/${id}/settlements`).then((r) => r.data)
+
+export const getSettlements = (params?: Record<string, unknown>): Promise<ApiResponse<unknown>> =>
+  apiClient.get('/admin/settlements', { params }).then((r) => r.data)
+
+export const approveSettlement = (id: string): Promise<ApiResponse<unknown>> =>
+  apiClient.post(`/admin/settlements/${id}/approve`).then((r) => r.data)
+
+export const rejectSettlement = (id: string, reason: string): Promise<ApiResponse<unknown>> =>
+  apiClient.post(`/admin/settlements/${id}/reject`, { rejection_reason: reason }).then((r) => r.data)
+
+export const getFeatures = (): Promise<ApiResponse<unknown>> =>
+  apiClient.get('/admin/features').then((r) => r.data)
+
+export const toggleFeature = (code: string, isEnabled: boolean): Promise<ApiResponse<unknown>> =>
+  apiClient.post(`/admin/features/${code}`, { is_enabled: isEnabled }).then((r) => r.data)
+
 export const getRiders = (params?: Record<string, unknown>): Promise<ApiResponse<PaginatedResponse<unknown>>> =>
   apiClient.get('/admin/riders', { params }).then((r) => r.data)
 

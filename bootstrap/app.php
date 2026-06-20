@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role_or_profile' => \App\Http\Middleware\RoleOrProfile::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'feature' => \App\Http\Middleware\CheckFeatureFlag::class,
         ]);
 
         $middleware->api(prepend: [

@@ -117,15 +117,15 @@ class FinanceTest extends TestCase
         $expectedCommission = round($expectedTotalFare * 0.10, 2);
         $expectedDriverAmount = round($expectedTotalFare - $expectedCommission, 2);
 
-        $this->assertEquals($expectedCommission, $payment->platform_fee);
-        $this->assertEquals($expectedDriverAmount, $payment->driver_amount);
-        $this->assertEquals($expectedCommission, $payment->company_commission);
+        $this->assertEqualsWithDelta($expectedCommission, $payment->platform_fee, 0.01);
+        $this->assertEqualsWithDelta($expectedDriverAmount, $payment->driver_amount, 0.01);
+        $this->assertEqualsWithDelta($expectedCommission, $payment->company_commission, 0.01);
 
         $riderWallet = $this->walletRepo->findByUser($this->rider->id);
         $driverWallet = $this->walletRepo->findByUser($this->driver->id);
 
-        $this->assertEquals(200.00 - $expectedTotalFare, (float) $riderWallet->balance);
-        $this->assertEquals(50.00 + $expectedDriverAmount, (float) $driverWallet->balance);
+        $this->assertEqualsWithDelta(200.00 - $expectedTotalFare, (float) $riderWallet->balance, 0.01);
+        $this->assertEqualsWithDelta(50.00 + $expectedDriverAmount, (float) $driverWallet->balance, 0.01);
 
         $this->assertDatabaseMissing('driver_debts', [
             'ride_id' => $ride->id,

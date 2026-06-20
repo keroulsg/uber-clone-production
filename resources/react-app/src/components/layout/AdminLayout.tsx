@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Car, Users, UserCircle, Truck, CreditCard,
-  BarChart3, LifeBuoy, Bell, Settings, Menu, ChevronDown, Calculator,
+  BarChart3, LifeBuoy, Bell, Settings, Menu, ChevronDown, Calculator, ToggleLeft,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,7 @@ const navItems = [
   { icon: LifeBuoy, label: 'Support', href: '/admin/support' },
   { icon: Bell, label: 'Notifications', href: '/admin/notifications' },
   { icon: Calculator, label: 'Pricing Calculator', href: '/admin/pricing-calculator' },
+  { icon: ToggleLeft, label: 'Features', href: '/admin/features' },
   { icon: Settings, label: 'Settings', href: '/admin/settings' },
 ]
 

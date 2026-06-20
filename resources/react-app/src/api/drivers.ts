@@ -77,3 +77,9 @@ export const updateDriverPayout = (
 
 export const getDriverWallet = (): Promise<ApiResponse<unknown>> =>
   apiClient.get('/driver/wallet').then((r) => r.data)
+
+export const getDriverSettlements = (): Promise<ApiResponse<unknown>> =>
+  apiClient.get('/driver/settlements').then((r) => r.data)
+
+export const createDriverSettlement = (data: FormData): Promise<ApiResponse<unknown>> =>
+  apiClient.post('/driver/settlements', data, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data)
