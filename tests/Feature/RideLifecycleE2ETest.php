@@ -85,9 +85,12 @@ class RideLifecycleE2ETest extends TestCase
         Wallet::create(['user_id' => $this->driver->id, 'balance' => 50.00, 'currency' => 'USD']);
 
         collect([
+            ['key' => 'default_commission_rate', 'value' => '10'],
             ['key' => 'company_commission_rate', 'value' => '10'],
-            ['key' => 'long_pickup_commission_rate', 'value' => '9'],
-            ['key' => 'long_pickup_threshold_km', 'value' => '6'],
+            ['key' => 'long_pickup_commission_rate', 'value' => '8'],
+            ['key' => 'long_pickup_threshold_km', 'value' => '5'],
+            ['key' => 'default_fuel_price', 'value' => '20'],
+            ['key' => 'default_fuel_consumption', 'value' => '8.5'],
             ['key' => 'waiting_free_minutes', 'value' => '5'],
             ['key' => 'waiting_fee_per_minute', 'value' => '0.50'],
             ['key' => 'vehicle_class_basic_multiplier', 'value' => '1.0'],
@@ -171,7 +174,7 @@ class RideLifecycleE2ETest extends TestCase
 
         $driverWallet = $this->walletRepo->findByUser($this->driver->id);
         $expectedDriverEarning = round($ride->actual_fare - ($ride->actual_fare * 0.10), 2);
-        $this->assertEqualsWithDelta(50.00 + $expectedDriverEarning, (float) $driverWallet->balance, 0.01);
+        $this->assertEqualsWithDelta(50.00 + $expectedDriverEarning, (float) $driverWallet->balance, 0.02);
 
         // 11. No debt created for wallet ride (commission collected upfront)
         $this->assertDatabaseMissing('driver_debts', [

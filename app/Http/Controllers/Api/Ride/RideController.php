@@ -197,6 +197,13 @@ class RideController extends Controller
             'destination_longitude' => 'required|numeric',
             'distance' => 'nullable|numeric|min:0',
             'duration' => 'nullable|integer|min:0',
+            'pickup_distance' => 'nullable|numeric|min:0',
+            'fuel_price' => 'nullable|numeric|min:0',
+            'fuel_consumption' => 'nullable|numeric|min:0',
+            'surge_multiplier' => 'nullable|numeric|min:1',
+            'is_peak' => 'nullable|boolean',
+            'is_night' => 'nullable|boolean',
+            'is_female' => 'nullable|boolean',
         ]);
 
         $vehicleType = $this->vehicleTypeRepo->findById($request->input('vehicle_type_id'));
@@ -224,7 +231,19 @@ class RideController extends Controller
             $duration = (int) ($distance / 40 * 60);
         }
 
-        $fare = $this->fareCalc->calculateEstimatedFare($vehicleType, $distance, $duration);
+        $fare = $this->fareCalc->calculateEstimatedFare(
+            $vehicleType,
+            $distance,
+            $duration,
+            null,
+            $request->input('pickup_distance'),
+            (float) ($request->input('surge_multiplier', 1)),
+            (bool) $request->input('is_peak', false),
+            (bool) $request->input('is_night', false),
+            (bool) $request->input('is_female', false),
+            $request->input('fuel_price'),
+            $request->input('fuel_consumption'),
+        );
 
         return response()->json([
             'success' => true,

@@ -21,8 +21,8 @@ export const getDashboard = (): Promise<ApiResponse<DashboardStats>> =>
 export const getStats = (): Promise<ApiResponse<unknown>> =>
   apiClient.get('/admin/stats').then((r) => r.data)
 
-export const getCharts = (period?: string): Promise<ApiResponse<unknown>> =>
-  apiClient.get('/admin/charts', { params: { period } }).then((r) => r.data)
+export const getCharts = (period?: string, from?: string, to?: string): Promise<ApiResponse<unknown>> =>
+  apiClient.get('/admin/charts', { params: { period, from, to } }).then((r) => r.data)
 
 export const getActivities = (): Promise<ApiResponse<unknown[]>> =>
   apiClient.get('/admin/activities').then((r) => r.data)

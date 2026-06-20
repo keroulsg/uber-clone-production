@@ -18,10 +18,13 @@ class FareCalculationService
         bool $isPeak = false,
         bool $isNight = false,
         bool $isFemaleDriver = false,
+        ?float $userFuelPrice = null,
+        ?float $userFuelConsumption = null,
     ): array {
-        $fuelPrice = (float) (Setting::where('key', 'default_fuel_price')->first()?->value ?? 20);
-        $fuelConsumption = (float) (Setting::where('key', 'default_fuel_consumption')->first()?->value ?? 8.5);
-        $fuelCost = $this->calculateFuelCost($distanceKm, $fuelPrice, $fuelConsumption);
+        $fuelPrice = $userFuelPrice ?? (float) (Setting::where('key', 'default_fuel_price')->first()?->value ?? 20);
+        $fuelConsumption = $userFuelConsumption ?? (float) (Setting::where('key', 'default_fuel_consumption')->first()?->value ?? 8.5);
+        $totalDriverDistance = ($pickupDistanceKm ?? 0) + $distanceKm;
+        $fuelCost = $this->calculateFuelCost($totalDriverDistance, $fuelPrice, $fuelConsumption);
         $classMultiplier = $this->getVehicleClassMultiplier($vehicle?->vehicle_class);
 
         $vehicleTypeCommissionRate = $vehicleType->commission_rate
@@ -32,15 +35,11 @@ class FareCalculationService
         $distanceFare = $distanceKm * (float) $vehicleType->per_km_rate;
         $timeFare = $durationMin * (float) $vehicleType->per_minute_rate;
 
-        $subtotal = ($baseFare + $distanceFare + $timeFare + $fuelCost) * $classMultiplier;
-        $subtotal = round($subtotal, 2);
-
-        $totalFare = round(max($subtotal, (float) $vehicleType->minimum_fare), 2);
+        $coreFare = $baseFare + $distanceFare + $timeFare;
 
         $pickupCompensation = 0;
         if ($pickupDistanceKm !== null && $pickupDistanceKm > 2) {
-            $threshold = 2;
-            $excessKm = $pickupDistanceKm - $threshold;
+            $excessKm = $pickupDistanceKm - 2;
             if ($pickupDistanceKm <= 5) {
                 $pickupComp = (float) (Setting::where('key', 'pickup_comp_rate_2_5')->first()?->value ?? 3);
                 $pickupCompensation = round($excessKm * $pickupComp, 2);
@@ -48,8 +47,18 @@ class FareCalculationService
                 $pickupComp = (float) (Setting::where('key', 'pickup_comp_rate_5_plus')->first()?->value ?? 5);
                 $pickupCompensation = round($excessKm * $pickupComp, 2);
             }
-            $totalFare = round($totalFare + $pickupCompensation, 2);
         }
+
+        $subtotal = $coreFare + $pickupCompensation;
+
+        if ($userFuelPrice === null && $userFuelConsumption === null) {
+            $subtotal = ($subtotal + $fuelCost) * $classMultiplier;
+        } else {
+            $subtotal = $subtotal * $classMultiplier;
+        }
+        $subtotal = round($subtotal, 2);
+
+        $totalFare = round(max($subtotal, (float) $vehicleType->minimum_fare), 2);
 
         if ($surgeMultiplier > 1.0) {
             $totalFare = round($totalFare * $surgeMultiplier, 2);
@@ -76,17 +85,17 @@ class FareCalculationService
         }
 
         $finalFare = round($totalFare, 2);
-
         $companyCommission = round($finalFare * $vehicleTypeCommissionRate, 2);
         $driverAmount = round($finalFare - $companyCommission, 2);
 
         $minDriverProfit = (float) (Setting::where('key', 'minimum_driver_profit')->first()?->value ?? 20);
-        $netProfit = $driverAmount - $fuelCost;
-        if ($netProfit < $minDriverProfit) {
-            $shortfall = round($minDriverProfit - $netProfit, 2);
+        $netDriverEarning = round($driverAmount - $fuelCost, 2);
+        if ($netDriverEarning < $minDriverProfit && $userFuelPrice !== null) {
+            $shortfall = round($minDriverProfit - $netDriverEarning, 2);
             $finalFare = round($finalFare + $shortfall, 2);
             $companyCommission = round($finalFare * $vehicleTypeCommissionRate, 2);
             $driverAmount = round($finalFare - $companyCommission, 2);
+            $netDriverEarning = round($driverAmount - $fuelCost, 2);
         }
 
         return [
@@ -96,10 +105,10 @@ class FareCalculationService
             'base_fare' => $baseFare,
             'distance_fare' => round($distanceFare, 2),
             'time_fare' => round($timeFare, 2),
+            'pickup_compensation' => $pickupCompensation,
             'fuel_cost' => round($fuelCost, 2),
             'class_multiplier' => $classMultiplier,
             'subtotal' => $subtotal,
-            'pickup_compensation' => $pickupCompensation,
             'female_surcharge' => $femaleSurcharge,
             'surge_multiplier' => $surgeMultiplier,
             'surge_amount' => 0,
@@ -110,21 +119,21 @@ class FareCalculationService
             'driver_amount' => $driverAmount,
             'fuel_price' => $fuelPrice,
             'fuel_consumption' => $fuelConsumption,
-            'net_driver_profit' => round($driverAmount - $fuelCost, 2),
+            'net_driver_earning' => $netDriverEarning,
+            'net_driver_profit' => $netDriverEarning,
         ];
     }
 
     public function getCommissionRate(?float $driverPickupDistanceKm = null): float
     {
-        $defaultRate = (float) (Setting::where('key', 'default_commission_rate')->first()?->value ?? 10);
+        $defaultRate = (float) (Setting::where('key', 'default_commission_rate')->first()?->value
+            ?? Setting::where('key', 'company_commission_rate')->first()?->value
+            ?? 10);
         $rate = $defaultRate / 100;
 
-        if ($driverPickupDistanceKm !== null) {
-            $threshold = (float) (Setting::where('key', 'long_pickup_threshold_km')->first()?->value ?? 2);
-            if ($driverPickupDistanceKm > $threshold) {
-                $longRate = (float) (Setting::where('key', 'long_pickup_commission_rate')->first()?->value ?? 8);
-                $rate = $longRate / 100;
-            }
+        if ($driverPickupDistanceKm !== null && $driverPickupDistanceKm > 5) {
+            $longRate = (float) (Setting::where('key', 'long_pickup_commission_rate')->first()?->value ?? 8);
+            $rate = $longRate / 100;
         }
 
         return $rate;
@@ -134,15 +143,11 @@ class FareCalculationService
     {
         $freeMinutes = (int) (Setting::where('key', 'waiting_free_minutes')->first()?->value ?? 5);
         $perMinuteRate = (float) (Setting::where('key', 'waiting_fee_per_minute')->first()?->value ?? 0.50);
-
-        if ($waitingMinutes <= $freeMinutes) {
-            return 0;
-        }
-
+        if ($waitingMinutes <= $freeMinutes) return 0;
         return round(($waitingMinutes - $freeMinutes) * $perMinuteRate, 2);
     }
 
-    private function calculateFuelCost(float $distanceKm, float $fuelPrice, float $fuelConsumption): float
+    public function calculateFuelCost(float $distanceKm, float $fuelPrice, float $fuelConsumption): float
     {
         return round(($distanceKm * $fuelConsumption / 100) * $fuelPrice, 2);
     }

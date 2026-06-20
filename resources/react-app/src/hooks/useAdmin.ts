@@ -17,11 +17,11 @@ export function useDashboard() {
   })
 }
 
-export function useCharts(period?: string) {
+export function useCharts(period?: string, from?: string, to?: string) {
   const token = useAdminToken()
   return useQuery({
-    queryKey: ['admin', 'charts', period],
-    queryFn: () => adminApi.getCharts(period),
+    queryKey: ['admin', 'charts', period, from, to],
+    queryFn: () => adminApi.getCharts(period, from, to),
     enabled: !!token,
     retry: 1,
   })

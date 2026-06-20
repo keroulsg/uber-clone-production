@@ -69,9 +69,12 @@ class FinanceTest extends TestCase
         Wallet::create(['user_id' => $this->driver->id, 'balance' => 50.00, 'currency' => 'USD']);
 
         collect([
+            ['key' => 'default_commission_rate', 'value' => '10'],
             ['key' => 'company_commission_rate', 'value' => '10'],
-            ['key' => 'long_pickup_commission_rate', 'value' => '9'],
-            ['key' => 'long_pickup_threshold_km', 'value' => '6'],
+            ['key' => 'long_pickup_commission_rate', 'value' => '8'],
+            ['key' => 'long_pickup_threshold_km', 'value' => '5'],
+            ['key' => 'default_fuel_price', 'value' => '20'],
+            ['key' => 'default_fuel_consumption', 'value' => '8.5'],
             ['key' => 'waiting_free_minutes', 'value' => '5'],
             ['key' => 'waiting_fee_per_minute', 'value' => '0.50'],
             ['key' => 'vehicle_class_basic_multiplier', 'value' => '1.0'],
@@ -169,10 +172,10 @@ class FinanceTest extends TestCase
         $this->assertEquals(0.10, $rate);
     }
 
-    public function test_commission_rate_drops_to_9_percent_for_long_pickup(): void
+    public function test_commission_rate_drops_to_8_percent_for_long_pickup(): void
     {
         $rate = $this->fareCalc->getCommissionRate(8.0);
-        $this->assertEquals(0.09, $rate);
+        $this->assertEquals(0.08, $rate);
     }
 
     public function test_commission_rate_stays_10_percent_for_short_pickup(): void
@@ -183,11 +186,11 @@ class FinanceTest extends TestCase
 
     public function test_commission_rate_at_threshold_boundary(): void
     {
-        $rate = $this->fareCalc->getCommissionRate(6.0);
+        $rate = $this->fareCalc->getCommissionRate(5.0);
         $this->assertEquals(0.10, $rate, 'At exactly threshold, rate should remain default');
 
-        $rate = $this->fareCalc->getCommissionRate(6.1);
-        $this->assertEquals(0.09, $rate, 'Above threshold, rate should drop');
+        $rate = $this->fareCalc->getCommissionRate(5.1);
+        $this->assertEquals(0.08, $rate, 'Above threshold, rate should drop to 8%');
     }
 
     public function test_vehicle_class_multipliers_affect_fare(): void

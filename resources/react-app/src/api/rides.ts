@@ -59,6 +59,13 @@ const normalizeEstimateFareParams = (params: Record<string, unknown>) => {
     vehicle_type_id: (params.vehicleTypeId ?? params.vehicle_type_id) as number | string,
     distance: params.distance as number | undefined,
     duration: params.duration as number | undefined,
+    pickup_distance: params.pickup_distance as number | undefined,
+    fuel_price: params.fuel_price as number | undefined,
+    fuel_consumption: params.fuel_consumption as number | undefined,
+    surge_multiplier: params.surge_multiplier as number | undefined,
+    is_peak: params.is_peak as boolean | undefined,
+    is_night: params.is_night as boolean | undefined,
+    is_female: params.is_female as boolean | undefined,
   }
 }
 

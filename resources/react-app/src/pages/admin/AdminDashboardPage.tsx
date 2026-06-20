@@ -30,10 +30,10 @@ export default function AdminDashboardPage() {
 
   const stats: DashboardStats | undefined = dashRes?.data
   const chartData = chartRes?.data
-  const response = latestRidesRes?.data as ApiResponse<PaginatedResponse<Ride>> | undefined
-  const latestRides: Ride[] = response?.data?.data ?? []
+  const response = latestRidesRes?.data as any
+  const latestRides: Ride[] = response?.data ?? []
   const driverResponse = latestDriversRes?.data as any
-  const latestDrivers: Driver[] = (driverResponse?.data?.data ?? []).map((item: any) => item.driver ?? item)
+  const latestDrivers: Driver[] = (driverResponse?.data ?? []).map((item: any) => item.driver ?? item)
 
   const today = new Date()
   const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 18 ? 'Good afternoon' : 'Good evening'

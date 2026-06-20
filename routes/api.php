@@ -170,6 +170,8 @@ Route::prefix('v1')->group(function () {
             Route::post('settings', [AdminController::class, 'updateSetting']);
             Route::get('features', [AdminFeatureController::class, 'index']);
             Route::post('features/{code}', [AdminFeatureController::class, 'update']);
+            Route::get('reports/export-csv', [AdminController::class, 'reportsExportCsv']);
+            Route::get('reports/export-pdf', [AdminController::class, 'reportsExportPdf']);
             Route::get('audit-logs', [AdminController::class, 'auditLogs']);
             Route::get('users', [AdminController::class, 'users']);
             Route::get('rides', [AdminController::class, 'rides']);

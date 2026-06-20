@@ -48,6 +48,10 @@ export default function AdminPricingCalculatorPage() {
         vehicle_type_id: parseInt(vehicleTypeId),
         distance: distanceKm,
         duration: durationMin,
+        pickup_distance: pickupKm,
+        fuel_price: gasPrice,
+        fuel_consumption: fuelConsumption,
+        surge_multiplier: surgeMultiplier,
       },
       {
         onSuccess: (res: any) => {
