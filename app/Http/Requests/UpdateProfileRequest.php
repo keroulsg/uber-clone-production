@@ -19,6 +19,8 @@ class UpdateProfileRequest extends FormRequest
             'phone' => 'nullable|string|unique:users,phone,' . $this->user()->id,
             'gender' => 'nullable|string',
             'avatar_url' => 'nullable|url',
+            'address' => 'nullable|string|max:500',
+            'city' => 'nullable|string|max:100',
         ];
     }
 }

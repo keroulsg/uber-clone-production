@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   Bell, MessageSquare, Mail, Megaphone,
   Car, Moon, Sun, Globe, Info,
-  AlertTriangle, Trash,
+  AlertTriangle, Trash, Save, Volume2,
 } from 'lucide-react'
+import { useUserSettings, useUpdateUserSettings } from '@/hooks/useUserSettings'
+import { playNotificationSound, unlockNotificationSound } from '@/lib/notificationSound'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -15,21 +19,91 @@ import {
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { PageHeader } from '@/components/common/PageHeader'
+import { LoadingScreen } from '@/components/common/LoadingScreen'
+import type { UserSettings } from '@/types'
 
-export default function RiderSettingsPage() {
-  const [notifications, setNotifications] = useState({
+const defaultSettings: UserSettings = {
+  notifications: {
     pushRideUpdates: true,
     smsRideUpdates: false,
     emailRideUpdates: true,
     pushPromotions: false,
     emailPromotions: false,
-  })
+    soundEnabled: true,
+    notificationVolume: 100,
+  },
+  preferredVehicle: 'any',
+  language: 'en',
+  appearance: 'system',
+}
 
-  const [preferredVehicle, setPreferredVehicle] = useState('any')
-  const [language, setLanguage] = useState('en')
+export default function RiderSettingsPage() {
+  const navigate = useNavigate()
+  const { data: settingsData, isLoading } = useUserSettings()
+  const updateSettings = useUpdateUserSettings()
   const [deleteOpen, setDeleteOpen] = useState(false)
 
+  const [notifications, setNotifications] = useState(defaultSettings.notifications)
+  const [preferredVehicle, setPreferredVehicle] = useState(defaultSettings.preferredVehicle)
+  const [language, setLanguage] = useState(defaultSettings.language)
+  const [appearance, setAppearance] = useState(defaultSettings.appearance)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [notificationVolume, setNotificationVolume] = useState(100)
+
+  const settings = settingsData?.data as UserSettings | undefined
+
+  useEffect(() => {
+    if (settings) {
+      const n = settings.notifications
+      setNotifications({
+        pushRideUpdates: n?.pushRideUpdates ?? true,
+        smsRideUpdates: n?.smsRideUpdates ?? false,
+        emailRideUpdates: n?.emailRideUpdates ?? true,
+        pushPromotions: n?.pushPromotions ?? false,
+        emailPromotions: n?.emailPromotions ?? false,
+        soundEnabled: n?.soundEnabled ?? true,
+      })
+      setNotificationVolume((n as any)?.notificationVolume ?? 100)
+      setPreferredVehicle(settings.preferredVehicle ?? 'any')
+      setLanguage(settings.language ?? 'en')
+      setAppearance(settings.appearance ?? 'system')
+    }
+  }, [settings])
+
+  useEffect(() => {
+    if (!settings) return
+    const changed =
+      JSON.stringify(notifications) !== JSON.stringify(settings.notifications) ||
+      preferredVehicle !== settings.preferredVehicle ||
+      language !== settings.language ||
+      appearance !== settings.appearance
+    setHasChanges(changed)
+  }, [notifications, preferredVehicle, language, appearance, settings])
+
+  const handleSave = async () => {
+    try {
+      await updateSettings.mutateAsync({
+        notifications: { ...notifications, notificationVolume },
+        preferredVehicle,
+        language,
+        appearance,
+      })
+      toast.success('Settings saved')
+      setHasChanges(false)
+    } catch {
+      toast.error('Failed to save settings')
+    }
+  }
+
+  const handleDeleteAccount = () => {
+    setDeleteOpen(false)
+    navigate('/rider/support')
+    toast.info('Please create a support ticket to request account deletion')
+  }
+
   const appVersion = '1.0.0'
+
+  if (isLoading) return <LoadingScreen />
 
   return (
     <div className="space-y-6">
@@ -122,6 +196,49 @@ export default function RiderSettingsPage() {
               onCheckedChange={(v) => setNotifications((n) => ({ ...n, emailPromotions: v }))}
             />
           </div>
+
+          <Separator />
+          <p className="text-sm font-medium text-muted-foreground pt-2">Sound</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-start gap-3">
+              <Volume2 className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                <Label htmlFor="sound" className="font-medium">Notification Sound</Label>
+                <p className="text-sm text-muted-foreground">Play a sound when important notifications arrive</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  unlockNotificationSound()
+                  playNotificationSound(notificationVolume)
+                }}
+              >
+                Test
+              </Button>
+              <Switch
+                id="sound"
+                checked={notifications.soundEnabled}
+                onCheckedChange={(v) => setNotifications((n) => ({ ...n, soundEnabled: v }))}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-3">
+            <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={notificationVolume}
+              onChange={(e) => setNotificationVolume(parseInt(e.target.value))}
+              disabled={!notifications.soundEnabled}
+              className="flex-1 accent-primary"
+            />
+            <span className="text-sm text-muted-foreground w-10 text-right">{notificationVolume}%</span>
+          </div>
         </CardContent>
       </Card>
 
@@ -164,12 +281,10 @@ export default function RiderSettingsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="en">English</SelectItem>
-                <SelectItem value="es">Español</SelectItem>
-                <SelectItem value="fr">Français</SelectItem>
-                <SelectItem value="de">Deutsch</SelectItem>
                 <SelectItem value="ar">العربية</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground mt-2">Language saved. Full translation will be enabled soon.</p>
           </CardContent>
         </Card>
       </div>
@@ -187,6 +302,14 @@ export default function RiderSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={!hasChanges || updateSettings.isPending} className="gap-2">
+          <Save className="h-4 w-4" />
+          {updateSettings.isPending ? 'Saving...' : 'Save Settings'}
+        </Button>
+      </div>
+
       {/* App Info */}
       <Card>
         <CardHeader>
@@ -203,7 +326,7 @@ export default function RiderSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Delete Account */}
+      {/* Danger Zone */}
       <Card className="border-destructive/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-destructive">
@@ -217,7 +340,7 @@ export default function RiderSettingsPage() {
             <div>
               <Label className="font-medium">Delete Account</Label>
               <p className="text-sm text-muted-foreground">
-                Permanently delete your account and all associated data
+                Contact support to request account deletion. This action requires admin approval.
               </p>
             </div>
             <Button
@@ -235,11 +358,11 @@ export default function RiderSettingsPage() {
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete Account"
-        description="Are you sure you want to delete your account? This action cannot be undone. All your data, including ride history and wallet balance, will be permanently removed."
-        confirmText="Delete My Account"
+        title="Request Account Deletion"
+        description="Account deletion is managed by our support team. This will create a support ticket for your deletion request."
+        confirmText="Contact Support"
         variant="destructive"
-        onConfirm={() => setDeleteOpen(false)}
+        onConfirm={handleDeleteAccount}
       />
     </div>
   )

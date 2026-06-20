@@ -31,7 +31,7 @@ class NotificationController extends Controller
         ]);
     }
 
-    public function markAsRead(int $id, Request $request): JsonResponse
+    public function markAsRead($id, Request $request): JsonResponse
     {
         Notification::where('id', $id)
             ->where('notifiable_id', $request->user()->id)

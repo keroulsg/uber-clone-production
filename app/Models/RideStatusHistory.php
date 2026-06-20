@@ -16,6 +16,7 @@ class RideStatusHistory extends Model
         'ride_id',
         'status',
         'created_at',
+        'metadata',
     ];
 
     protected function casts(): array
@@ -23,6 +24,7 @@ class RideStatusHistory extends Model
         return [
             'status' => RideStatus::class,
             'created_at' => 'datetime',
+            'metadata' => 'array',
         ];
     }
 

@@ -15,14 +15,8 @@ export const rateRider = (
 ): Promise<ApiResponse<Rating>> =>
   apiClient.post('/ratings/rider', data).then((r) => r.data)
 
-export const getDriverRatings = (
-  driverId: string,
-  params?: Record<string, unknown>
-): Promise<ApiResponse<PaginatedResponse<Rating>>> =>
-  apiClient.get(`/ratings/driver/${driverId}`, { params }).then((r) => r.data)
+export const getMyDriverRatings = (): Promise<ApiResponse<PaginatedResponse<Rating>>> =>
+  apiClient.get('/ratings/driver/me').then((r) => r.data)
 
-export const getRiderRatings = (
-  riderId: string,
-  params?: Record<string, unknown>
-): Promise<ApiResponse<PaginatedResponse<Rating>>> =>
-  apiClient.get(`/ratings/rider/${riderId}`, { params }).then((r) => r.data)
+export const getMyRiderRatings = (): Promise<ApiResponse<PaginatedResponse<Rating>>> =>
+  apiClient.get('/ratings/rider/me').then((r) => r.data)

@@ -22,10 +22,43 @@ class PaymentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $paginator = Payment::whereHas('ride', fn($q) => $q->where('rider_id', $request->user()->id))
-            ->orWhereHas('ride', fn($q) => $q->whereHas('driver', fn($dq) => $dq->where('user_id', $request->user()->id)))
-            ->latest()
-            ->paginate(20);
+        $query = Payment::query()
+            ->with(['ride.driver.user', 'ride.rider'])
+            ->where(function ($q) use ($request) {
+                $q->whereHas('ride', fn($sub) => $sub->where('rider_id', $request->user()->id))
+                  ->orWhereHas('ride', fn($sub) => $sub->whereHas('driver', fn($dq) => $dq->where('user_id', $request->user()->id)));
+            });
+
+        // Status filter
+        if ($request->filled('status') && $request->input('status') !== 'all') {
+            $query->where('status', $request->input('status'));
+        }
+
+        // Payment method filter
+        if ($request->filled('method') && $request->input('method') !== 'all') {
+            $query->where('payment_method', $request->input('method'));
+        }
+
+        // Date range filter
+        if ($request->filled('from')) {
+            $query->whereDate('paid_at', '>=', $request->input('from'));
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('paid_at', '<=', $request->input('to'));
+        }
+
+        // Search by ride/booking ID
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('transaction_id', 'like', "%{$search}%")
+                  ->orWhereHas('ride', fn($sq) => $sq->where('booking_id', 'like', "%{$search}%"));
+            });
+        }
+
+        $perPage = min((int) $request->input('per_page', 20), 100);
+
+        $paginator = $query->latest()->paginate($perPage);
 
         return response()->json([
             'success' => true,
@@ -77,18 +110,26 @@ class PaymentController extends Controller
             return response()->json(['success' => false, 'message' => 'Wallet not found'], 404);
         }
 
+        $amount = (float) $request->input('amount');
         $balanceBefore = (float) $wallet->balance;
-        $this->walletRepo->addBalance($request->user()->id, $request->input('amount'));
+        $this->walletRepo->addBalance($request->user()->id, $amount);
         $wallet->refresh();
         $balanceAfter = (float) $wallet->balance;
 
         LedgerEntry::create([
             'user_id' => $request->user()->id,
             'type' => 'credit',
-            'amount' => (float) $request->input('amount'),
+            'amount' => $amount,
             'balance_before' => $balanceBefore,
             'balance_after' => $balanceAfter,
             'description' => 'Wallet top-up',
+        ]);
+
+        \App\Models\Notification::create([
+            'type' => 'wallet_topup',
+            'notifiable_type' => \App\Models\User::class,
+            'notifiable_id' => $request->user()->id,
+            'data' => ['amount' => $amount, 'message' => "Your wallet has been topped up with {$amount}."],
         ]);
 
         return response()->json([

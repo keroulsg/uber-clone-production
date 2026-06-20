@@ -17,14 +17,20 @@ class SupportService
 
     public function createTicket(SupportTicketDTO $dto): Ticket
     {
-        return $this->ticketRepo->create([
+        $data = [
             'ticket_id' => 'TKT-' . strtoupper(uniqid()),
             'user_id' => $dto->userId,
             'subject' => $dto->subject,
             'message' => $dto->message,
             'priority' => $dto->priority,
             'category' => $dto->category,
-        ]);
+        ];
+
+        if ($dto->rideId) {
+            $data['ride_id'] = $dto->rideId;
+        }
+
+        return $this->ticketRepo->create($data);
     }
 
     public function addMessage(int $ticketId, int $userId, string $message, bool $isStaff = false): TicketMessage

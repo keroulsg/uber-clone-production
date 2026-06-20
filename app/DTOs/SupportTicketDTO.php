@@ -10,6 +10,7 @@ class SupportTicketDTO
         public readonly string $message,
         public readonly string $priority = 'medium',
         public readonly ?string $category = null,
+        public readonly ?int $rideId = null,
     ) {}
 
     public static function fromRequest(array $data, int $userId): self
@@ -20,6 +21,7 @@ class SupportTicketDTO
             message: $data['message'],
             priority: $data['priority'] ?? 'medium',
             category: $data['category'] ?? null,
+            rideId: $data['ride_id'] ?? null,
         );
     }
 }

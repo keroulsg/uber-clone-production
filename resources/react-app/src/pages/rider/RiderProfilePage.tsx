@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { toast } from 'sonner'
 import {
-  Camera, Save, Eye, EyeOff,
+  Camera, Save, Eye, EyeOff, Trash,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
-import { useUpdateProfile, useChangePassword } from '@/hooks/useAuth'
+import { useUpdateProfile, useChangePassword, useUploadAvatar, useDeleteAvatar } from '@/hooks/useAuth'
 import { changePasswordSchema } from '@/lib/validations'
 import { getInitials } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,9 @@ type PasswordForm = z.infer<typeof changePasswordSchema>
 export default function RiderProfilePage() {
   const { user } = useAuthStore()
   const updateProfile = useUpdateProfile()
+  const uploadAvatar = useUploadAvatar()
+  const deleteAvatar = useDeleteAvatar()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const changePassword = useChangePassword()
 
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
@@ -60,8 +64,8 @@ export default function RiderProfilePage() {
       profileForm.reset({
         name: user.name,
         phone: user.phone,
-        address: '',
-        city: '',
+        address: user.address ?? '',
+        city: user.city ?? '',
       })
     }
   }, [user, profileForm])
@@ -77,9 +81,27 @@ export default function RiderProfilePage() {
 
   const onPasswordSubmit = (data: PasswordForm) => {
     changePassword.mutate(
-      { currentPassword: data.currentPassword, newPassword: data.newPassword },
+      { currentPassword: data.currentPassword, newPassword: data.newPassword, newPasswordConfirmation: data.newPasswordConfirmation },
       { onSuccess: () => passwordForm.reset() }
     )
+  }
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Only JPG, PNG, or WebP images are allowed')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be under 2MB')
+      return
+    }
+    uploadAvatar.mutate(file)
+  }
+
+  const handleAvatarDelete = () => {
+    deleteAvatar.mutate()
   }
 
   if (!user) return <LoadingScreen />
@@ -99,13 +121,35 @@ export default function RiderProfilePage() {
                   {getInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
-              <Button
-                size="icon"
-                variant="secondary"
-                className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full"
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-1 absolute -bottom-1 -right-1">
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="h-8 w-8 rounded-full"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadAvatar.isPending}
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+                {user.avatarUrl && (
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    className="h-8 w-8 rounded-full"
+                    onClick={handleAvatarDelete}
+                    disabled={deleteAvatar.isPending}
+                  >
+                    <Trash className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
             </div>
             <h3 className="font-semibold text-lg">{user.name}</h3>
             <p className="text-sm text-muted-foreground">{user.email}</p>

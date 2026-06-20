@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Car, Navigation, History, Wallet, CreditCard,
-  Heart, User, Settings, Menu, ChevronDown, Bell, LifeBuoy,
+  Heart, User, Settings, Menu, ChevronDown, Bell, LifeBuoy, Star,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ import { useLogout } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { NotificationBell } from '@/components/common/NotificationBell'
 import { useUnreadCount, useMarkAllAsRead, useMarkAsRead, useNotifications } from '@/hooks/useNotifications'
+import { useUserSettings } from '@/hooks/useUserSettings'
 import { queryClient } from '@/lib/queryClient'
 
 const navItems = [
@@ -27,6 +28,7 @@ const navItems = [
   { icon: Wallet, label: 'Wallet', href: '/rider/wallet' },
   { icon: CreditCard, label: 'Payments', href: '/rider/payments' },
   { icon: Heart, label: 'Favorites', href: '/rider/favorites' },
+  { icon: Star, label: 'Ratings', href: '/rider/ratings' },
   { icon: User, label: 'Profile', href: '/rider/profile' },
   { icon: Settings, label: 'Settings', href: '/rider/settings' },
   { icon: Bell, label: 'Notifications', href: '/rider/notifications' },
@@ -39,7 +41,11 @@ export function RiderLayout() {
   const navigate = useNavigate()
   const logout = useLogout()
   const { user, isAuthenticated } = useAuthStore()
-  const { data: notifData, isLoading: notifLoading, isError: notifError } = useNotifications(undefined, { enabled: isAuthenticated })
+  const { data: settingsData } = useUserSettings()
+  const settings = settingsData?.data as any
+  const soundEnabled = settings?.notifications?.soundEnabled ?? true
+  const notificationVolume = settings?.notifications?.notificationVolume ?? 100
+  const { data: notifData, isLoading: notifLoading, isError: notifError } = useNotifications(undefined, { enabled: isAuthenticated, refetchInterval: 5000 })
   const { data: unreadCount } = useUnreadCount({ enabled: isAuthenticated })
   const markAllAsRead = useMarkAllAsRead()
   const markAsRead = useMarkAsRead()
@@ -120,6 +126,8 @@ export function RiderLayout() {
             <NotificationBell
               notifications={notifications}
               unreadCount={unreadCount ?? 0}
+              soundEnabled={soundEnabled}
+              volume={notificationVolume}
               onMarkAllRead={() => markAllAsRead.mutate()}
               onMarkAsRead={(id) => markAsRead.mutate(id)}
               viewAllHref="/rider/notifications"

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Send, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTickets, useTicket, useCreateTicket, useAddMessage, useCloseTicket } from '@/hooks/useTickets'
+import { useRides } from '@/hooks/useRides'
 import { formatDate } from '@/lib/utils'
 import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingScreen } from '@/components/common/LoadingScreen'
@@ -22,7 +23,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import type { Ticket } from '@/types'
+import type { Ticket, RideBrief } from '@/types'
 
 const priorityBadgeVariant: Record<string, 'default' | 'secondary' | 'warning' | 'destructive'> = {
   low: 'secondary',
@@ -38,12 +39,18 @@ export default function RiderSupportPage() {
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
   const [priority, setPriority] = useState('medium')
+  const [category, setCategory] = useState('ride_issue')
+  const [rideId, setRideId] = useState('no_ride')
 
   const { data, isLoading, isError, refetch } = useTickets()
   const { data: ticketDetail } = useTicket(selectedTicketId ?? '')
   const createTicket = useCreateTicket()
   const addMessage = useAddMessage()
   const closeTicket = useCloseTicket()
+
+  // Fetch recent rides for ride ID selection
+  const { data: ridesData } = useRides({ per_page: 50, page: 1 })
+  const recentRides = (ridesData?.data?.data ?? []) as RideBrief[]
 
   const tickets = data?.data?.data ?? []
   const selectedTicket = ticketDetail?.data as Ticket | undefined
@@ -72,11 +79,19 @@ export default function RiderSupportPage() {
   const handleCreateTicket = async () => {
     if (!subject.trim() || !message.trim()) return
     try {
-      await createTicket.mutateAsync({ subject, message, priority })
+      await createTicket.mutateAsync({
+        subject,
+        message,
+        priority,
+        category,
+        ...(rideId && rideId !== 'no_ride' ? { ride_id: rideId } : {}),
+      })
       setCreateOpen(false)
       setSubject('')
       setMessage('')
       setPriority('medium')
+      setCategory('ride_issue')
+      setRideId('no_ride')
       toast.success('Ticket created')
     } catch {
       toast.error('Failed to create ticket')
@@ -88,7 +103,7 @@ export default function RiderSupportPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Support" description="View and manage your support tickets" actions={[{ label: 'New Ticket', onClick: () => setCreateOpen(true), icon: Plus }]} />
+      <PageHeader title="Support" description="Contact our team about rides, payments, lost items, refunds, complaints, or account requests." actions={[{ label: 'New Ticket', onClick: () => setCreateOpen(true), icon: Plus }]} />
 
       {tickets.length === 0 ? (
         <EmptyState
@@ -184,15 +199,47 @@ export default function RiderSupportPage() {
               <Label>Subject</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Brief description of the issue" />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ride_issue">Ride Issue</SelectItem>
+                    <SelectItem value="payment_issue">Payment Issue</SelectItem>
+                    <SelectItem value="driver_complaint">Driver Complaint</SelectItem>
+                    <SelectItem value="lost_item">Lost Item</SelectItem>
+                    <SelectItem value="refund_request">Refund Request</SelectItem>
+                    <SelectItem value="app_problem">App Problem</SelectItem>
+                    <SelectItem value="account_deletion">Account Deletion Request</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Select value={priority} onValueChange={setPriority}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label>Priority</Label>
-              <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label>Related Ride (optional)</Label>
+              <Select value={rideId} onValueChange={setRideId}>
+                <SelectTrigger><SelectValue placeholder="No ride selected" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
+                  <SelectItem value="no_ride">No ride selected</SelectItem>
+                  {recentRides.map((ride) => (
+                    <SelectItem key={ride.id} value={ride.id}>
+                      {ride.bookingId} — {ride.pickup?.address?.slice(0, 30)}...
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

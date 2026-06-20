@@ -1,4 +1,4 @@
-export type RideStatus = 'pending' | 'searching_driver' | 'driver_assigned' | 'driver_arrived' | 'ride_started' | 'ride_completed' | 'cancelled'
+export type RideStatus = 'pending' | 'searching_driver' | 'driver_assigned' | 'driver_arrived' | 'ride_started' | 'ride_completed' | 'completed' | 'cancelled'
 
 export type DriverStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
 
@@ -23,6 +23,8 @@ export interface User {
   name: string
   email: string
   phone: string
+  address?: string
+  city?: string
   gender?: string
   avatarUrl?: string
   isActive: boolean
@@ -191,6 +193,8 @@ export interface Ride {
   cancelledAt?: string
   cancelledBy?: string
   cancellationReason?: string
+  cancellationReasonId?: string
+  cancellationComment?: string
   femaleDriverPreferred?: boolean
   femaleDriverUnavailable?: boolean
   fallbackAvailable?: boolean
@@ -224,6 +228,8 @@ export interface RideBrief {
   cancelledAt?: string
   cancelledBy?: string
   cancellationReason?: string
+  cancellationReasonId?: string
+  cancellationComment?: string
 }
 
 export interface Payment {
@@ -274,6 +280,7 @@ export interface Rating {
   id: string
   rideId: string
   rater: UserBrief
+  ride?: { bookingId?: string }
   rating: number
   comment?: string
   createdAt: string
@@ -358,6 +365,37 @@ export interface ApiResponse<T> {
   data: T
   trace_id?: string
   service?: string
+}
+
+export interface CancellationReason {
+  id: string
+  reason: string
+}
+
+export interface SavedPlace {
+  id: string
+  label: 'home' | 'work' | 'custom'
+  name: string
+  address: string
+  latitude: number
+  longitude: number
+  isFavorite: boolean
+  createdAt: string
+}
+
+export interface UserSettings {
+  notifications: {
+    pushRideUpdates: boolean
+    smsRideUpdates: boolean
+    emailRideUpdates: boolean
+    pushPromotions: boolean
+    emailPromotions: boolean
+    soundEnabled: boolean
+    notificationVolume?: number
+  }
+  preferredVehicle: string
+  language: string
+  appearance: string
 }
 
 export interface RoutePoint {

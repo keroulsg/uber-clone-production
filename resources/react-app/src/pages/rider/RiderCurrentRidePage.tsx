@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Navigation, MapPin, Phone, Star, Car,
   XCircle, AlertTriangle, ChevronLeft,
   Clock, CheckCircle, User, Route, Bike,
 } from 'lucide-react'
-import { useCurrentRide, useCancelRide, useAcceptAnyDriver } from '@/hooks/useRides'
+import { useCurrentRide, useCancelRide, useAcceptAnyDriver, useRecentCompletedPendingRating, useDismissCompleted } from '@/hooks/useRides'
 import { useRideStore } from '@/stores/rideStore'
 import { useDriverTracking } from '@/hooks/useDriverTracking'
 import { formatCurrency, formatDuration, formatDistance } from '@/lib/utils'
@@ -16,9 +17,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { RouteMap } from '@/components/common/RouteMap'
-import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { RatingStars } from '@/components/common/RatingStars'
 import { Input } from '@/components/ui/input'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
@@ -31,7 +36,11 @@ import { LoadingScreen } from '@/components/common/LoadingScreen'
 import { ErrorState } from '@/components/common/ErrorState'
 import { useRideBroadcast } from '@/hooks/useRideBroadcast'
 import { useRateDriver } from '@/hooks/useRatings'
+import { useCancellationReasons } from '@/hooks/useCancellationReasons'
+import { useCreateSavedPlace } from '@/hooks/useSavedPlaces'
+import { toast } from 'sonner'
 import { MapService } from '@/maps/MapService'
+import type { CancellationReason, Ride } from '@/types'
 
 const statusSteps = [
   { status: 'pending', label: 'Requested', icon: Clock },
@@ -49,10 +58,24 @@ export default function RiderCurrentRidePage() {
   const navigate = useNavigate()
   const { currentRide } = useRideStore()
   const { isLoading, error, refetch } = useCurrentRide()
+  const { data: pendingRatingRide, refetch: refetchPendingRating } = useRecentCompletedPendingRating()
+  const dismissCompleted = useDismissCompleted()
+  const queryClient = useQueryClient()
+  const storedRide = currentRide
+  const completedRideForRating = (!storedRide || storedRide.status === 'ride_completed' || storedRide.status === 'completed') 
+    ? (pendingRatingRide as Ride | null) 
+    : null
+  const displayRide = storedRide && storedRide.status !== 'ride_completed' && storedRide.status !== 'completed' 
+    ? storedRide 
+    : null
   const cancelRide = useCancelRide()
   const acceptAnyDriver = useAcceptAnyDriver()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const [cancelReasonId, setCancelReasonId] = useState<number | undefined>(undefined)
+  const [cancelComment, setCancelComment] = useState('')
+  const { data: reasonsData } = useCancellationReasons('rider')
+  const cancellationReasons = (reasonsData?.data ?? []) as CancellationReason[]
   const [fallbackOpen, setFallbackOpen] = useState(false)
   const [searchStartTime] = useState(() => Date.now())
   const [arrivedWaitingSeconds, setArrivedWaitingSeconds] = useState(0)
@@ -68,6 +91,7 @@ export default function RiderCurrentRidePage() {
   const [ratingComment, setRatingComment] = useState('')
   const [ratingError, setRatingError] = useState('')
   const rateDriver = useRateDriver()
+  const createSavedPlace = useCreateSavedPlace()
 
   useRideBroadcast(currentRide?.id ?? null, {
     onAccepted: useCallback(() => refetch(), [refetch]),
@@ -163,9 +187,17 @@ export default function RiderCurrentRidePage() {
   }, [currentRide, searchStartTime])
 
   const handleCancel = () => {
-    if (currentRide) {
-      cancelRide.mutate({ id: currentRide.id, reason: cancelReason || undefined })
+    if (currentRide && cancelReason) {
+      cancelRide.mutate({
+        id: currentRide.id,
+        reason: cancelReason,
+        reasonId: cancelReasonId,
+        comment: cancelComment || undefined,
+      })
       setCancelOpen(false)
+      setCancelReason('')
+      setCancelReasonId(undefined)
+      setCancelComment('')
     }
   }
 
@@ -186,9 +218,11 @@ export default function RiderCurrentRidePage() {
       setRatingError('Please select a rating')
       return
     }
-    if (!currentRide) return
+    if (!currentRide && !completedRideForRating) return
+    const rideToRate = currentRide || completedRideForRating
+    if (!rideToRate) return
     rateDriver.mutate(
-      { ride_id: currentRide.id, rating: ratingValue, comment: ratingComment },
+      { ride_id: rideToRate.id, rating: ratingValue, comment: ratingComment },
       {
         onSuccess: () => {
           setRateDialogOpen(false)
@@ -196,9 +230,52 @@ export default function RiderCurrentRidePage() {
           setRatingComment('')
           setRatingError('')
           refetch()
+          refetchPendingRating()
+          queryClient.invalidateQueries({ queryKey: ['rides', 'recent-completed-pending-rating'] })
+          useRideStore.getState().clearCurrentRide()
         },
       }
     )
+  }
+
+  const handleDismissCompleted = () => {
+    const rideToDismiss = currentRide || completedRideForRating
+    if (rideToDismiss) {
+      dismissCompleted.mutate(rideToDismiss.id)
+    }
+    useRideStore.getState().clearCurrentRide()
+  }
+
+  const handleSavePickup = async () => {
+    if (!currentRide) return
+    try {
+      await createSavedPlace.mutateAsync({
+        label: 'custom',
+        name: currentRide.pickup?.address?.split(',')[0]?.slice(0, 50) || 'Pickup',
+        address: currentRide.pickup?.address || '',
+        latitude: currentRide.pickup?.lat,
+        longitude: currentRide.pickup?.lng,
+      })
+      toast.success('Pickup location saved')
+    } catch {
+      toast.error('Failed to save place')
+    }
+  }
+
+  const handleSaveDestination = async () => {
+    if (!currentRide) return
+    try {
+      await createSavedPlace.mutateAsync({
+        label: 'custom',
+        name: currentRide.destination?.address?.split(',')[0]?.slice(0, 50) || 'Destination',
+        address: currentRide.destination?.address || '',
+        latitude: currentRide.destination?.lat,
+        longitude: currentRide.destination?.lng,
+      })
+      toast.success('Destination saved')
+    } catch {
+      toast.error('Failed to save place')
+    }
   }
 
   const routeType = isDriverAssigned ? 'driver-pickup' : isStarted ? 'driver-dest' : 'pickup-dest'
@@ -207,6 +284,126 @@ export default function RiderCurrentRidePage() {
   if (error) return <ErrorState onRetry={() => refetch()} />
 
   if (!currentRide) {
+    // Show completed ride needing rating if available
+    if (completedRideForRating) {
+      const cr = completedRideForRating
+      return (
+        <div className="space-y-4 pb-32">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/rider/dashboard')}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-bold">Ride Complete</h1>
+              <p className="text-sm text-muted-foreground">Booking #{cr.bookingId}</p>
+            </div>
+            <StatusBadge status={cr.status} type="ride" />
+          </div>
+          <Card className="border-green-200 bg-green-50/50">
+            <CardContent className="p-4 space-y-3">
+              <div className="text-center">
+                <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-2" />
+                <h2 className="text-xl font-bold text-green-700">Ride Completed</h2>
+                <p className="text-sm text-muted-foreground">Thank you for riding with us!</p>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Total Fare</span>
+                <span className="text-xl font-bold">{formatCurrency(cr.actualFare ?? cr.estimatedFare)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Payment Method</span>
+                <span className="font-medium capitalize">{cr.paymentMethod === 'wallet' ? 'Wallet' : cr.paymentMethod === 'cash' ? 'Cash' : cr.paymentMethod ?? 'N/A'}</span>
+              </div>
+              {cr.actualDistance != null && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Distance</span>
+                  <span className="font-medium">{formatDistance(cr.actualDistance)}</span>
+                </div>
+              )}
+              {cr.actualDuration != null && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Duration</span>
+                  <span className="font-medium">{formatDuration(cr.actualDuration)}</span>
+                </div>
+              )}
+              <div className="flex gap-2 pt-2">
+                {!cr.riderRated && (
+                  <Button variant="outline" className="flex-1 gap-2" onClick={() => setRateDialogOpen(true)}>
+                    <Star className="h-4 w-4" />
+                    Rate Driver
+                  </Button>
+                )}
+                <Button variant="outline" className="flex-1" onClick={handleDismissCompleted}>
+                  Done
+                </Button>
+                <Button className="flex-1" onClick={() => navigate('/rider/dashboard')}>
+                  Book Again
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-start gap-3">
+                <MapPin className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-muted-foreground">Pickup</p>
+                  <p className="font-medium text-sm truncate">{cr.pickup?.address}</p>
+                </div>
+                <Button variant="ghost" size="sm" className="shrink-0 text-xs gap-1" onClick={handleSavePickup} disabled={createSavedPlace.isPending}>
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+                  Save
+                </Button>
+              </div>
+              <div className="flex items-start gap-3">
+                <MapPin className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-muted-foreground">Destination</p>
+                  <p className="font-medium text-sm truncate">{cr.destination?.address}</p>
+                </div>
+                <Button variant="ghost" size="sm" className="shrink-0 text-xs gap-1" onClick={handleSaveDestination} disabled={createSavedPlace.isPending}>
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+                  Save
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>
+            <DialogContent aria-describedby="rate-driver-desc">
+              <DialogHeader>
+                <DialogTitle className="text-center">Rate {cr?.driver?.user?.name ?? 'Driver'}</DialogTitle>
+              </DialogHeader>
+              <p id="rate-driver-desc" className="text-sm text-muted-foreground text-center">
+                How was your ride experience?
+              </p>
+              <div className="space-y-4">
+                <div className="flex justify-center">
+                  <RatingStars
+                    rating={ratingValue}
+                    size="lg"
+                    interactive
+                    onChange={(value) => { setRatingValue(value); setRatingError('') }}
+                  />
+                </div>
+                <Input
+                  placeholder="Leave a comment (optional)"
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  maxLength={500}
+                />
+                {ratingError && <p className="text-sm text-destructive text-center">{ratingError}</p>}
+                <Button className="w-full" onClick={handleRateSubmit} disabled={ratingValue === 0 || rateDriver.isPending}>
+                  {rateDriver.isPending ? 'Submitting...' : 'Submit Rating'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )
+    }
+
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -547,17 +744,25 @@ export default function RiderCurrentRidePage() {
         <CardContent className="p-4 space-y-2">
           <div className="flex items-start gap-3">
             <MapPin className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-xs text-muted-foreground">Pickup</p>
               <p className="font-medium text-sm truncate">{currentRide.pickup?.address}</p>
             </div>
+            <Button variant="ghost" size="sm" className="shrink-0 text-xs gap-1" onClick={handleSavePickup} disabled={createSavedPlace.isPending}>
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+              Save
+            </Button>
           </div>
           <div className="flex items-start gap-3">
             <MapPin className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-xs text-muted-foreground">Destination</p>
               <p className="font-medium text-sm truncate">{currentRide.destination?.address}</p>
             </div>
+            <Button variant="ghost" size="sm" className="shrink-0 text-xs gap-1" onClick={handleSaveDestination} disabled={createSavedPlace.isPending}>
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+              Save
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -582,17 +787,62 @@ export default function RiderCurrentRidePage() {
         </Button>
       </div>
 
-      <ConfirmDialog
-        open={cancelOpen} onOpenChange={setCancelOpen}
-        title="Cancel Ride" description="Are you sure you want to cancel this ride?"
-        confirmText="Yes, Cancel" variant="destructive" onConfirm={handleCancel}
-      />
+      <Dialog open={cancelOpen} onOpenChange={(open) => { setCancelOpen(open); if (!open) { setCancelReason(''); setCancelReasonId(undefined); setCancelComment('') } }}>
+        <DialogContent aria-describedby="cancel-ride-desc">
+          <DialogHeader>
+            <DialogTitle>Cancel Ride</DialogTitle>
+          </DialogHeader>
+          <p id="cancel-ride-desc" className="text-sm text-muted-foreground">
+            Please select a reason for cancelling. A cancellation fee may apply if the driver is nearby.
+          </p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Reason for cancellation <span className="text-destructive">*</span></Label>
+                <Select value={cancelReason} onValueChange={(value) => {
+                  setCancelReason(value)
+                  const selected = cancellationReasons.find((r) => r.reason === value)
+                  setCancelReasonId(selected ? parseInt(selected.id) : undefined)
+                }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a reason..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {cancellationReasons.map((r) => (
+                    <SelectItem key={r.id} value={r.reason}>{r.reason}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Additional comment (optional)</Label>
+              <Textarea
+                placeholder="Add more details..."
+                value={cancelComment}
+                onChange={(e) => setCancelComment(e.target.value)}
+                maxLength={300}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => { setCancelOpen(false); setCancelReason(''); setCancelReasonId(undefined); setCancelComment('') }}>
+                Keep Ride
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleCancel}
+                disabled={!cancelReason || cancelRide.isPending}
+              >
+                {cancelRide.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={fallbackOpen} onOpenChange={setFallbackOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent aria-describedby="fallback-desc">
           <AlertDialogHeader>
             <AlertDialogTitle>No Female Driver Available</AlertDialogTitle>
-            <AlertDialogDescription>No female driver is available right now. Would you like to continue with any available driver?</AlertDialogDescription>
+            <AlertDialogDescription id="fallback-desc">No female driver is available right now. Would you like to continue with any available driver?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
             <AlertDialogCancel onClick={handleFallbackCancel} className="mt-0">Cancel Without Fee</AlertDialogCancel>
@@ -602,10 +852,13 @@ export default function RiderCurrentRidePage() {
       </AlertDialog>
 
       <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>
-        <DialogContent>
+        <DialogContent aria-describedby="rate-driver-desc-active">
           <DialogHeader>
             <DialogTitle className="text-center">Rate {currentRide?.driver?.user?.name ?? 'Driver'}</DialogTitle>
           </DialogHeader>
+          <p id="rate-driver-desc-active" className="text-sm text-muted-foreground text-center">
+            How was your ride experience?
+          </p>
           <div className="space-y-4">
             <div className="flex justify-center">
               <RatingStars

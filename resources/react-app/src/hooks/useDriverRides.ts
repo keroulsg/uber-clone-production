@@ -103,6 +103,7 @@ export function useCompleteRide() {
         queryClient.invalidateQueries({ queryKey: ['driver-rides'] })
         queryClient.invalidateQueries({ queryKey: ['driver'] })
         queryClient.invalidateQueries({ queryKey: ['driver', 'rides', 'history'] })
+        queryClient.invalidateQueries({ queryKey: ['rides', 'recent-completed-pending-rating'] })
       }
     },
   })

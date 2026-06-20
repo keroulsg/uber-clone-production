@@ -19,7 +19,8 @@ import { getInitials } from '@/lib/utils'
 import { useLogout } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { useDriverStore } from '@/stores/driverStore'
-import { useToggleOnlineStatus } from '@/hooks/useDrivers'
+import { useToggleOnlineStatus, useDriverProfile } from '@/hooks/useDrivers'
+import { useUserSettings } from '@/hooks/useUserSettings'
 import { NotificationBell } from '@/components/common/NotificationBell'
 import { useUnreadCount, useMarkAllAsRead, useMarkAsRead, useNotifications } from '@/hooks/useNotifications'
 import { queryClient } from '@/lib/queryClient'
@@ -47,7 +48,12 @@ export function DriverLayout() {
   const { user, isAuthenticated } = useAuthStore()
   const { isOnline } = useDriverStore()
   const toggleOnline = useToggleOnlineStatus()
-  const { data: notifData, isLoading: notifLoading, isError: notifError } = useNotifications(undefined, { enabled: isAuthenticated })
+  useDriverProfile() // populate driverStore for all child pages
+  const { data: settingsData } = useUserSettings()
+  const settings = settingsData?.data as any
+  const soundEnabled = settings?.notifications?.soundEnabled ?? true
+  const notificationVolume = settings?.notifications?.notificationVolume ?? 100
+  const { data: notifData, isLoading: notifLoading, isError: notifError } = useNotifications(undefined, { enabled: isAuthenticated, refetchInterval: 5000 })
   const { data: unreadCount } = useUnreadCount({ enabled: isAuthenticated })
   const markAllAsRead = useMarkAllAsRead()
   const markAsRead = useMarkAsRead()
@@ -151,6 +157,8 @@ export function DriverLayout() {
             <NotificationBell
               notifications={notifications}
               unreadCount={unreadCount ?? 0}
+              soundEnabled={soundEnabled}
+              volume={notificationVolume}
               onMarkAllRead={() => markAllAsRead.mutate()}
               onMarkAsRead={(id) => markAsRead.mutate(id)}
               viewAllHref="/driver/notifications"

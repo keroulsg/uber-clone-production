@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import {
   Bell, MessageSquare, DollarSign, Globe,
-  Moon, Sun, Shield, AlertTriangle, Trash, Wallet,
+  Moon, Sun, Shield, AlertTriangle, Trash, Wallet, Volume2, Save,
 } from 'lucide-react'
+import { playNotificationSound, unlockNotificationSound } from '@/lib/notificationSound'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -29,6 +30,8 @@ export default function DriverSettingsPage() {
   })
 
   const [language, setLanguage] = useState('en')
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const [notificationVolume, setNotificationVolume] = useState(100)
   const [deactivateOpen, setDeactivateOpen] = useState(false)
 
   const [payout, setPayout] = useState<PayoutInfo>({
@@ -119,6 +122,49 @@ export default function DriverSettingsPage() {
               checked={notifications.earningsReports}
               onCheckedChange={(v) => setNotifications((n) => ({ ...n, earningsReports: v }))}
             />
+          </div>
+
+          <Separator />
+          <p className="text-sm font-medium text-muted-foreground pt-2">Sound</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-start gap-3">
+              <Volume2 className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                <Label htmlFor="sound-driver" className="font-medium">Notification Sound</Label>
+                <p className="text-sm text-muted-foreground">Play sound for ride requests and important alerts</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  unlockNotificationSound()
+                  playNotificationSound(notificationVolume)
+                }}
+              >
+                Test
+              </Button>
+              <Switch
+                id="sound-driver"
+                checked={soundEnabled}
+                onCheckedChange={setSoundEnabled}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-3">
+            <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={notificationVolume}
+              onChange={(e) => setNotificationVolume(parseInt(e.target.value))}
+              disabled={!soundEnabled}
+              className="flex-1 accent-primary"
+            />
+            <span className="text-sm text-muted-foreground w-10 text-right">{notificationVolume}%</span>
           </div>
         </CardContent>
       </Card>

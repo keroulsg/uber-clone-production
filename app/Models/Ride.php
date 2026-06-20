@@ -40,6 +40,8 @@ class Ride extends Model
         'cancelled_at',
         'cancelled_by',
         'cancellation_reason',
+        'cancellation_reason_id',
+        'cancellation_comment',
         'female_driver_preferred',
         'female_driver_unavailable',
         'fallback_available',
@@ -48,6 +50,8 @@ class Ride extends Model
         'waiting_started_at',
         'rating_by_rider',
         'rating_by_driver',
+        'rider_completed_dismissed_at',
+        'driver_completed_dismissed_at',
     ];
 
     protected function casts(): array
@@ -74,6 +78,8 @@ class Ride extends Model
             'fallback_to_any_driver_accepted' => 'boolean',
             'rating_by_rider' => 'boolean',
             'rating_by_driver' => 'boolean',
+            'rider_completed_dismissed_at' => 'datetime',
+            'driver_completed_dismissed_at' => 'datetime',
         ];
     }
 

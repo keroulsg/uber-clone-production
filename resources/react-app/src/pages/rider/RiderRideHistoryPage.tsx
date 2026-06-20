@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Eye, RotateCcw, Star, Calendar, Filter,
+  Eye, RotateCcw, Star, Calendar, Filter, Search,
 } from 'lucide-react'
 import { useRides } from '@/hooks/useRides'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -27,6 +27,7 @@ import type { RideBrief, Ride } from '@/types'
 
 const statusOptions = [
   { value: 'all', label: 'All Status' },
+  { value: 'in_progress', label: 'In Progress' },
   { value: 'ride_completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
@@ -43,6 +44,8 @@ export default function RiderRideHistoryPage() {
   const [ratingDialogOpen, setRatingDialogOpen] = useState(false)
   const [ratingValue, setRatingValue] = useState(0)
   const [ratingRideId, setRatingRideId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [ratingComment, setRatingComment] = useState('')
 
   const rateDriver = useRateDriver()
 
@@ -53,8 +56,9 @@ export default function RiderRideHistoryPage() {
       ...(statusFilter && { status: statusFilter }),
       ...(dateFrom && { from: dateFrom }),
       ...(dateTo && { to: dateTo }),
+      ...(searchQuery && { search: searchQuery }),
     }),
-    [page, perPage, statusFilter, dateFrom, dateTo]
+    [page, perPage, statusFilter, dateFrom, dateTo, searchQuery]
   )
 
   const { data, isLoading, error, refetch } = useRides(params)
@@ -83,8 +87,14 @@ export default function RiderRideHistoryPage() {
   const submitRating = () => {
     if (ratingRideId && ratingValue > 0) {
       rateDriver.mutate(
-        { rideId: ratingRideId, rating: ratingValue },
-        { onSuccess: () => setRatingDialogOpen(false) }
+        { ride_id: ratingRideId, rating: ratingValue, comment: ratingComment || undefined },
+        {
+          onSuccess: () => {
+            setRatingDialogOpen(false)
+            setRatingComment('')
+            refetch()
+          },
+        }
       )
     }
   }
@@ -195,6 +205,15 @@ export default function RiderRideHistoryPage() {
                 className="w-40 h-9"
               />
             </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search booking ID..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(1) }}
+                className="w-48 h-9"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -212,8 +231,6 @@ export default function RiderRideHistoryPage() {
         perPage={perPage}
         onPageChange={setPage}
         onPerPageChange={(pp) => { setPerPage(pp); setPage(1) }}
-        searchable
-        searchPlaceholder="Search by booking ID..."
         emptyMessage="No rides found"
       />
 
@@ -249,7 +266,13 @@ export default function RiderRideHistoryPage() {
                   <p className="font-medium">{selectedRide.driver.user?.name}</p>
                 </div>
               )}
-              {selectedRide.vehicleType && (
+              {selectedRide.vehicle && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Vehicle</p>
+                  <p className="font-medium">{selectedRide.vehicle.make} {selectedRide.vehicle.model} &middot; {selectedRide.vehicle.licensePlate}</p>
+                </div>
+              )}
+              {selectedRide.vehicleType && !selectedRide.vehicle && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Vehicle Type</p>
                   <p className="font-medium">{selectedRide.vehicleType.name}</p>
@@ -282,6 +305,31 @@ export default function RiderRideHistoryPage() {
                   </Badge>
                 </div>
               )}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Rating</span>
+                {selectedRide.riderRated ? (
+                  <Badge variant="success">Rated</Badge>
+                ) : selectedRide.status === 'ride_completed' ? (
+                  <Button variant="outline" size="sm" className="gap-1" onClick={() => { handleRateDriver(selectedRide.id); setDetailOpen(false) }}>
+                    <Star className="h-3 w-3" /> Rate Driver
+                  </Button>
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+              {selectedRide.cancellationReason && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Cancellation</p>
+                    <p className="text-sm">{selectedRide.cancellationReason}</p>
+                    {selectedRide.cancellationComment && (
+                      <p className="text-sm text-muted-foreground mt-1">{selectedRide.cancellationComment}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">Cancelled by: {selectedRide.cancelledBy ?? 'N/A'}</p>
+                  </div>
+                </>
+              )}
               <Separator />
               <div className="text-xs text-muted-foreground">
                 <p>Created: {formatDate(selectedRide.createdAt)}</p>
@@ -294,10 +342,10 @@ export default function RiderRideHistoryPage() {
 
       {/* Rating Dialog */}
       <Dialog open={ratingDialogOpen} onOpenChange={setRatingDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" aria-describedby="rate-driver-desc-history">
           <DialogHeader>
             <DialogTitle>Rate Your Driver</DialogTitle>
-            <DialogDescription>How was your ride experience?</DialogDescription>
+            <DialogDescription id="rate-driver-desc-history">How was your ride experience?</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
             <RatingStars
@@ -305,6 +353,12 @@ export default function RiderRideHistoryPage() {
               size="lg"
               interactive
               onChange={setRatingValue}
+            />
+            <Input
+              placeholder="Leave a comment (optional)"
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              maxLength={500}
             />
             <Button onClick={submitRating} disabled={ratingValue === 0 || rateDriver.isPending}>
               {rateDriver.isPending ? 'Submitting...' : 'Submit Rating'}

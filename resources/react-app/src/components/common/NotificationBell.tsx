@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, CheckCheck, Loader2, AlertCircle } from 'lucide-react'
+import { Bell, CheckCheck, Loader2, AlertCircle, Volume2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { formatDate } from '@/lib/utils'
+import { playNotificationSound, unlockNotificationSound, canPlaySound } from '@/lib/notificationSound'
 import type { Notification } from '@/types'
 
 interface NotificationBellProps {
@@ -21,6 +22,8 @@ interface NotificationBellProps {
   viewAllHref?: string
   isLoading?: boolean
   isError?: boolean
+  soundEnabled?: boolean
+  volume?: number
   className?: string
 }
 
@@ -72,51 +75,42 @@ export function NotificationBell({
   viewAllHref = '/notifications',
   isLoading = false,
   isError = false,
+  soundEnabled,
+  volume = 100,
   className,
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  const prevCountRef = useRef(unreadCount)
-  const prevIdsRef = useRef(new Set(notifications.map(n => n.id)))
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [soundBlocked, setSoundBlocked] = useState(false)
-  const [hasInteracted, setHasInteracted] = useState(false)
+  const prevCountRef = useRef(0)
+  const prevIdsRef = useRef(new Set<string>())
+  const initializedRef = useRef(false)
+  const soundOn = soundEnabled !== false
 
   useEffect(() => {
-    if (!open && unreadCount > prevCountRef.current) {
+    if (!initializedRef.current) {
+      prevCountRef.current = unreadCount
+      prevIdsRef.current = new Set(notifications.map(n => n.id))
+      initializedRef.current = true
+      return
+    }
+
+    if (soundOn && unreadCount > prevCountRef.current) {
       const currentIds = new Set(notifications.map(n => n.id))
       const newNotifs = notifications.filter(n => !prevIdsRef.current.has(n.id) && !n.readAt)
       if (newNotifs.length > 0) {
-        if (!audioRef.current) {
-          audioRef.current = new Audio()
-        }
-        audioRef.current.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACAf39/f4B/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+Af39/f4B/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+Af39/f4B/f3+AgH9/f3+AgH9/f3+Af39/f4B/f3+AgH9/f3+AgH9/f38='
-        try {
-          if (hasInteracted) {
-            audioRef.current.play().catch(() => setSoundBlocked(true))
-          } else {
-            setSoundBlocked(true)
-          }
-        } catch {
-          setSoundBlocked(true)
+        if (canPlaySound()) {
+          playNotificationSound(volume)
         }
       }
     }
     prevCountRef.current = unreadCount
     prevIdsRef.current = new Set(notifications.map(n => n.id))
-  }, [notifications, unreadCount, open, hasInteracted])
+  }, [notifications, unreadCount, open, soundOn, volume])
 
-  useEffect(() => {
-    const handler = () => setHasInteracted(true)
-    window.addEventListener('click', handler, { once: true })
-    window.addEventListener('touchstart', handler, { once: true })
-    window.addEventListener('keydown', handler, { once: true })
-    return () => {
-      window.removeEventListener('click', handler)
-      window.removeEventListener('touchstart', handler)
-      window.removeEventListener('keydown', handler)
-    }
-  }, [])
+  const handleEnableSound = useCallback(() => {
+    unlockNotificationSound()
+    playNotificationSound(volume)
+  }, [volume])
 
   const handleNotificationClick = useCallback((notification: Notification) => {
     if (!notification.readAt && onMarkAsRead) {
@@ -126,6 +120,8 @@ export function NotificationBell({
     const path = getNavigatePath(notification.type)
     navigate(path)
   }, [navigate, onMarkAsRead])
+
+  const soundLocked = soundOn && !canPlaySound()
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -140,10 +136,16 @@ export function NotificationBell({
               {unreadCount > 99 ? '99+' : unreadCount}
             </Badge>
           )}
-          {soundBlocked && unreadCount > 0 && !hasInteracted && (
-            <span className="absolute -top-1 -right-6 text-[8px] text-amber-500 whitespace-nowrap">
-              ⚠️ Click to enable sounds
-            </span>
+          {soundLocked && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute -bottom-9 left-0 text-xs gap-1 whitespace-nowrap h-6 px-2"
+              onClick={(e) => { e.stopPropagation(); handleEnableSound() }}
+            >
+              <Volume2 className="h-3 w-3" />
+              Enable Sound
+            </Button>
           )}
         </Button>
       </PopoverTrigger>

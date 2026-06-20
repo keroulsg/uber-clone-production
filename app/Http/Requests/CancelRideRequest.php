@@ -14,7 +14,9 @@ class CancelRideRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'cancellation_reason' => 'nullable|string|max:500',
+            'cancellation_reason' => 'required|string|max:500',
+            'cancellation_reason_id' => 'nullable|integer|exists:cancellation_reasons,id',
+            'cancellation_comment' => 'nullable|string|max:500',
         ];
     }
 }

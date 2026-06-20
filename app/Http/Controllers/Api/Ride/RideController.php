@@ -18,6 +18,8 @@ use App\DTOs\FareEstimationDTO;
 use App\Models\Ride;
 use App\Models\Rider;
 use App\Models\Driver;
+use App\Models\Wallet;
+use App\Models\LedgerEntry;
 use App\Models\RideDriverOffer;
 use App\Models\Notification;
 use Illuminate\Http\JsonResponse;
@@ -37,20 +39,53 @@ class RideController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $paginator = \App\Models\Ride::where('rider_id', $request->user()->id)
-            ->with('driver.user', 'vehicleType', 'payment')
-            ->latest()
-            ->paginate(20);
+        $query = \App\Models\Ride::where('rider_id', $request->user()->id)
+            ->with('driver.user', 'vehicleType', 'payment');
+
+        // Status filter
+        if ($request->filled('status') && $request->input('status') !== 'all') {
+            $statusMap = [
+                'completed' => ['ride_completed', 'completed'],
+                'cancelled' => ['cancelled'],
+                'in_progress' => ['pending', 'searching_driver', 'driver_assigned', 'driver_arrived', 'ride_started'],
+            ];
+            if (isset($statusMap[$request->input('status')])) {
+                $query->whereIn('status', $statusMap[$request->input('status')]);
+            }
+        }
+
+        // Date range filter
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->input('from'));
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->input('to'));
+        }
+
+        // Search by booking ID
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('booking_id', 'like', "%{$search}%")
+                  ->orWhere('id', $search);
+            });
+        }
+
+        $perPage = min((int) $request->input('per_page', 20), 100);
+
+        $paginator = $query->latest()->paginate($perPage);
 
         return response()->json([
             'success' => true,
             'data' => [
                 'data' => RideBriefResource::collection($paginator->items()),
                 'meta' => [
-                    'current_page' => $paginator->currentPage(),
-                    'last_page' => $paginator->lastPage(),
-                    'per_page' => $paginator->perPage(),
+                    'currentPage' => $paginator->currentPage(),
+                    'lastPage' => $paginator->lastPage(),
+                    'perPage' => $paginator->perPage(),
                     'total' => $paginator->total(),
+                    'from' => $paginator->firstItem() ?? 0,
+                    'to' => $paginator->lastItem() ?? 0,
                 ],
             ],
         ]);
@@ -140,13 +175,29 @@ class RideController extends Controller
             ]);
         }
 
-        // Create ride requested notification
+        // Create ride requested notification for rider
         Notification::create([
             'type' => 'ride_requested',
             'notifiable_type' => \App\Models\User::class,
             'notifiable_id' => $request->user()->id,
             'data' => ['ride_id' => $ride->id, 'status' => 'searching_driver', 'message' => 'Your ride has been requested.'],
         ]);
+
+        // Create new ride request notifications for eligible drivers
+        foreach ($eligibleDrivers->take(5) as $driver) {
+            if ($driver->user_id) {
+                Notification::create([
+                    'type' => 'new_ride_request',
+                    'notifiable_type' => \App\Models\User::class,
+                    'notifiable_id' => $driver->user_id,
+                    'data' => [
+                        'ride_id' => $ride->id,
+                        'pickup_address' => $dto->pickupAddress,
+                        'message' => 'New ride request near ' . $dto->pickupAddress,
+                    ],
+                ]);
+            }
+        }
 
         return response()->json([
             'success' => true,
@@ -265,16 +316,89 @@ class RideController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
             }
 
+            $reasonId = $request->input('cancellation_reason_id');
+            $reasonText = $request->input('cancellation_reason');
+            $comment = $request->input('cancellation_comment');
+
+            // Penalty: if driver is assigned and within 150m of pickup, apply penalty
+            $penaltyApplied = false;
+            if ($ride->driver_id && $ride->driver) {
+                $driverLat = $ride->driver->latitude;
+                $driverLng = $ride->driver->longitude;
+
+                if ($driverLat && $driverLng) {
+                    $distanceToPickup = $this->calculateDistance(
+                        (float) $driverLat,
+                        (float) $driverLng,
+                        (float) $ride->pickup_latitude,
+                        (float) $ride->pickup_longitude
+                    );
+
+                    if ($distanceToPickup <= 0.15) {
+                        // Apply cancellation penalty
+                        $penaltyAmount = $ride->vehicleType?->cancellation_fee ?? 5.00;
+                        Log::info('Rider cancellation penalty triggered', [
+                            'ride_id' => $ride->id,
+                            'distance_km' => $distanceToPickup,
+                            'penalty' => $penaltyAmount,
+                        ]);
+
+                        // Record penalty via wallet/ledger
+                        $wallet = \App\Models\Wallet::where('user_id', $request->user()->id)->first();
+                        if ($wallet && $wallet->balance >= $penaltyAmount) {
+                            $balanceBefore = (float) $wallet->balance;
+                            $wallet->balance = $balanceBefore - $penaltyAmount;
+                            $wallet->save();
+                            $balanceAfter = (float) $wallet->balance;
+
+                            \App\Models\LedgerEntry::create([
+                                'user_id' => $request->user()->id,
+                                'type' => 'debit',
+                                'amount' => $penaltyAmount,
+                                'balance_before' => $balanceBefore,
+                                'balance_after' => $balanceAfter,
+                                'description' => 'Cancellation penalty — ride #' . $ride->booking_id,
+                            ]);
+
+                            $penaltyApplied = true;
+
+                            Notification::create([
+                                'type' => 'wallet_debit',
+                                'notifiable_type' => \App\Models\User::class,
+                                'notifiable_id' => $request->user()->id,
+                                'data' => [
+                                    'ride_id' => $ride->id,
+                                    'amount' => $penaltyAmount,
+                                    'message' => "Cancellation penalty of {$penaltyAmount} applied for ride #{$ride->booking_id}.",
+                                ],
+                            ]);
+                        }
+                    }
+                } else {
+                    Log::info('Cannot calculate cancellation penalty — driver location unknown', [
+                        'ride_id' => $ride->id,
+                    ]);
+                }
+            }
+
             $ride = $this->rideService->cancelRide(
                 $id,
-                $request->input('cancellation_reason'),
-                'rider'
+                $reasonText,
+                'rider',
+                $reasonId,
+                $comment
             );
+
+            $responseData = new RideResource($ride->fresh()->load('driver.user', 'vehicleType'));
 
             return response()->json([
                 'success' => true,
-                'message' => 'Ride cancelled',
-                'data' => new RideResource($ride),
+                'message' => 'Ride cancelled' . ($penaltyApplied ? ' — penalty applied' : ''),
+                'data' => $responseData,
+                'penalty' => $penaltyApplied ? [
+                    'applied' => true,
+                    'amount' => $penaltyAmount ?? 0,
+                ] : null,
             ]);
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
@@ -309,6 +433,71 @@ class RideController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Fallback enabled',
+        ]);
+    }
+
+    public function recentCompletedPendingRating(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $isRider = $user->rider()->exists();
+
+        if ($isRider) {
+            $ride = Ride::with('driver.user', 'driver.vehicles.vehicleType', 'vehicle.vehicleType', 'vehicleType', 'vehicle')
+                ->where('rider_id', $user->id)
+                ->whereIn('status', ['ride_completed', 'completed'])
+                ->where('rating_by_rider', false)
+                ->whereNull('rider_completed_dismissed_at')
+                ->whereNotNull('driver_id')
+                ->orderBy('completed_at', 'desc')
+                ->first();
+        } else {
+            $driver = $user->driver;
+            if (!$driver) {
+                return response()->json(['success' => true, 'data' => null]);
+            }
+            $ride = Ride::with('rider', 'vehicle.vehicleType', 'vehicleType')
+                ->where('driver_id', $driver->id)
+                ->whereIn('status', ['ride_completed', 'completed'])
+                ->where('rating_by_driver', false)
+                ->whereNull('driver_completed_dismissed_at')
+                ->whereNotNull('rider_id')
+                ->orderBy('completed_at', 'desc')
+                ->first();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $ride ? new RideResource($ride) : null,
+        ]);
+    }
+
+    public function dismissCompleted(int $id, Request $request): JsonResponse
+    {
+        $ride = Ride::find($id);
+        if (!$ride) {
+            return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
+        }
+
+        if (!in_array($ride->status->value, ['ride_completed', 'completed'])) {
+            return response()->json(['success' => false, 'message' => 'Ride is not completed'], 422);
+        }
+
+        $user = $request->user();
+        $isRider = $ride->rider_id === $user->id;
+        $isDriver = $ride->driver_id && $ride->driver?->user_id === $user->id;
+
+        if ($isRider) {
+            $ride->update(['rider_completed_dismissed_at' => now()]);
+        } elseif ($isDriver) {
+            $ride->update(['driver_completed_dismissed_at' => now()]);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Ride dismissed',
+            'data' => new RideResource($ride->fresh()),
         ]);
     }
 

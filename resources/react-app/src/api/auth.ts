@@ -40,14 +40,27 @@ export const updateProfile = (data: FormData): Promise<ApiResponse<User>> =>
 
 export const changePassword = (
   currentPassword: string,
-  newPassword: string
+  newPassword: string,
+  newPasswordConfirmation: string
 ): Promise<ApiResponse<null>> =>
   apiClient
     .post('/auth/change-password', {
       current_password: currentPassword,
       new_password: newPassword,
+      new_password_confirmation: newPasswordConfirmation,
     })
     .then((r) => r.data)
+
+export const uploadAvatar = (file: File): Promise<ApiResponse<User>> => {
+  const formData = new FormData()
+  formData.append('avatar', file)
+  return apiClient.post('/auth/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data)
+}
+
+export const deleteAvatar = (): Promise<ApiResponse<User>> =>
+  apiClient.delete('/auth/avatar').then((r) => r.data)
 
 export const forgotPassword = (email: string): Promise<ApiResponse<null>> =>
   apiClient.post('/auth/forgot-password', { email }).then((r) => r.data)

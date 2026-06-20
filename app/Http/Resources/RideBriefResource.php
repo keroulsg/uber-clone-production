@@ -43,6 +43,8 @@ class RideBriefResource extends JsonResource
             'cancelledAt' => $this->cancelled_at?->toISOString(),
             'cancelledBy' => $this->cancelled_by,
             'cancellationReason' => $this->cancellation_reason,
+            'cancellationReasonId' => $this->cancellation_reason_id ? (string) $this->cancellation_reason_id : null,
+            'cancellationComment' => $this->cancellation_comment,
         ];
     }
 }

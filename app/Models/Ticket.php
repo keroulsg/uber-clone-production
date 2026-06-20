@@ -14,6 +14,7 @@ class Ticket extends Model
     protected $fillable = [
         'ticket_id',
         'user_id',
+        'ride_id',
         'subject',
         'message',
         'priority',
@@ -45,5 +46,10 @@ class Ticket extends Model
     public function assignedTo()
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function ride()
+    {
+        return $this->belongsTo(Ride::class);
     }
 }

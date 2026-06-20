@@ -17,7 +17,8 @@ class CreateTicketRequest extends FormRequest
             'subject' => 'required|string|max:255',
             'message' => 'required|string',
             'priority' => 'nullable|string|in:low,medium,high,urgent',
-            'category' => 'nullable|string',
+            'category' => 'nullable|string|max:50',
+            'ride_id' => 'nullable|integer|exists:rides,id',
         ];
     }
 }

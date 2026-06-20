@@ -89,6 +89,7 @@ export default function DriverProfilePage() {
       {
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword,
+        newPasswordConfirmation: formData.newPasswordConfirmation,
       },
       {
         onSuccess: () => {

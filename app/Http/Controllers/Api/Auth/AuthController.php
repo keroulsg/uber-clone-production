@@ -84,9 +84,9 @@ class AuthController extends Controller
 
     public function changePassword(ChangePasswordRequest $request): JsonResponse
     {
-        $request->user()->update([
-            'password' => bcrypt($request->input('new_password')),
-        ]);
+        $user = $request->user();
+        $user->password = $request->input('new_password');
+        $user->save();
 
         return response()->json([
             'success' => true,
@@ -123,6 +123,131 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'OTP verified successfully',
+        ]);
+    }
+
+    public function getSettings(Request $request): JsonResponse
+    {
+        $preferences = $request->user()->preferences ?? [];
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'notifications' => $preferences['notifications'] ?? [
+                    'pushRideUpdates' => true,
+                    'smsRideUpdates' => false,
+                    'emailRideUpdates' => true,
+                    'pushPromotions' => false,
+                    'emailPromotions' => false,
+                    'soundEnabled' => true,
+                    'notificationVolume' => 100,
+                ],
+                'preferredVehicle' => $preferences['preferredVehicle'] ?? 'any',
+                'language' => $preferences['language'] ?? 'en',
+                'appearance' => $preferences['appearance'] ?? 'system',
+            ],
+        ]);
+    }
+
+    public function updateSettings(Request $request): JsonResponse
+    {
+        $request->validate([
+            'notifications' => 'sometimes|array',
+            'notifications.pushRideUpdates' => 'boolean',
+            'notifications.smsRideUpdates' => 'boolean',
+            'notifications.emailRideUpdates' => 'boolean',
+            'notifications.pushPromotions' => 'boolean',
+            'notifications.emailPromotions' => 'boolean',
+            'notifications.soundEnabled' => 'boolean',
+            'notifications.notificationVolume' => 'integer|min:0|max:100',
+            'preferredVehicle' => 'sometimes|string',
+            'language' => 'sometimes|string',
+            'appearance' => 'sometimes|string',
+        ]);
+
+        $user = $request->user();
+        $preferences = $user->preferences ?? [];
+
+        if ($request->has('notifications')) {
+            $preferences['notifications'] = array_merge(
+                $preferences['notifications'] ?? [],
+                $request->input('notifications')
+            );
+        }
+
+        foreach (['preferredVehicle', 'language', 'appearance'] as $key) {
+            if ($request->has($key)) {
+                $preferences[$key] = $request->input($key);
+            }
+        }
+
+        $user->update(['preferences' => $preferences]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Settings updated',
+            'data' => [
+                'notifications' => $preferences['notifications'] ?? [],
+                'preferredVehicle' => $preferences['preferredVehicle'] ?? 'any',
+                'language' => $preferences['language'] ?? 'en',
+                'appearance' => $preferences['appearance'] ?? 'system',
+            ],
+        ]);
+    }
+
+    public function uploadAvatar(Request $request): JsonResponse
+    {
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,jpg,png,webp|max:2048',
+        ]);
+
+        $user = $request->user();
+        $file = $request->file('avatar');
+
+        // Delete old avatar if exists
+        if ($user->avatar_url) {
+            $oldPath = str_replace(\Illuminate\Support\Facades\Storage::disk('public')->url(''), '', $user->avatar_url);
+            \Illuminate\Support\Facades\Storage::disk('public')->delete(trim($oldPath, '/'));
+        }
+
+        $filename = 'avatar_' . $user->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+        $path = $file->storeAs('avatars', $filename, 'public');
+
+        // Generate full URL using config app.url
+        $url = rtrim(config('app.url'), '/') . '/storage/' . $path;
+        $relativePath = '/storage/' . $path;
+
+        $user->update([
+            'avatar_url' => $url,
+        ]);
+
+        $result = new UserResource($user->fresh());
+        $data = $result->resolve($request);
+        $data['avatarUrl'] = $url;
+        $data['avatarPath'] = $relativePath;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Avatar uploaded',
+            'data' => $data,
+        ]);
+    }
+
+    public function deleteAvatar(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->avatar_url) {
+            $path = str_replace(\Illuminate\Support\Facades\Storage::disk('public')->url(''), '', $user->avatar_url);
+            \Illuminate\Support\Facades\Storage::disk('public')->delete(trim($path, '/'));
+        }
+
+        $user->update(['avatar_url' => null]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Avatar removed',
+            'data' => new UserResource($user->fresh()),
         ]);
     }
 }

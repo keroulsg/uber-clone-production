@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Navigation, MapPin, Phone, Star, User, Car,
   ChevronLeft, CheckCircle, Play, ArrowRight,
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { useRateRider } from '@/hooks/useRatings'
+import { useRecentCompletedPendingRating, useDismissCompleted } from '@/hooks/useRides'
 
 const steps = [
   { key: 'navigate_to_pickup', label: 'Navigate to Pickup', icon: Navigation },
@@ -40,6 +42,9 @@ export default function DriverCurrentRidePage() {
   const navigate = useNavigate()
   const { currentRide } = useRideStore()
   const { isLoading, error, refetch } = useDriverCurrentRide()
+  const { data: pendingRatingRide, refetch: refetchPendingRating } = useRecentCompletedPendingRating()
+  const dismissCompleted = useDismissCompleted()
+  const queryClient = useQueryClient()
   const arrivedRide = useArrivedRide()
   const startRide = useStartRide()
   const completeRide = useCompleteRide()
@@ -189,9 +194,10 @@ export default function DriverCurrentRidePage() {
       setRatingError('Please select a rating')
       return
     }
-    if (!currentRide) return
+    const rideToRate = currentRide || pendingRatingRide
+    if (!rideToRate) return
     rateRider.mutate(
-      { ride_id: currentRide.id, rating: ratingValue, comment: ratingComment },
+      { ride_id: rideToRate.id, rating: ratingValue, comment: ratingComment },
       {
         onSuccess: () => {
           setRateDialogOpen(false)
@@ -199,14 +205,107 @@ export default function DriverCurrentRidePage() {
           setRatingComment('')
           setRatingError('')
           refetch()
+          refetchPendingRating()
+          queryClient.invalidateQueries({ queryKey: ['rides', 'recent-completed-pending-rating'] })
+          useRideStore.getState().clearCurrentRide()
         },
       }
     )
   }
 
+  const handleDismissCompleted = () => {
+    const rideToDismiss = currentRide || pendingRatingRide
+    if (rideToDismiss) {
+      dismissCompleted.mutate(rideToDismiss.id)
+    }
+    useRideStore.getState().clearCurrentRide()
+  }
+
   if (isLoading) return <LoadingScreen />
   if (error) return <ErrorState onRetry={() => refetch()} />
   if (!currentRide) {
+    // Show completed ride needing rating if available
+    if (pendingRatingRide) {
+      const cr = pendingRatingRide
+      return (
+        <div className="space-y-6 pb-32">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-bold">Ride Completed</h1>
+              <p className="text-sm text-muted-foreground">Booking #{cr.bookingId}</p>
+            </div>
+            <StatusBadge status={cr.status} type="ride" />
+          </div>
+          <Card className="border-green-200 bg-green-50/50">
+            <CardContent className="p-4 space-y-3">
+              <div className="text-center">
+                <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-2" />
+                <h2 className="text-xl font-bold text-green-700">Ride Completed Successfully</h2>
+                <p className="text-sm text-muted-foreground">Rider: {cr.rider?.name ?? 'N/A'}</p>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Total Fare</span>
+                <span className="text-xl font-bold">{formatCurrency(cr.actualFare ?? cr.estimatedFare)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Payment Method</span>
+                <span className="font-medium capitalize">{cr.paymentMethod ?? 'N/A'}</span>
+              </div>
+              <div className="flex gap-2 pt-2">
+                {!cr.riderRated && (
+                  <Button variant="outline" className="flex-1 gap-2" onClick={() => setRateDialogOpen(true)}>
+                    <Star className="h-4 w-4" />
+                    Rate Rider
+                  </Button>
+                )}
+                <Button variant="outline" className="flex-1" onClick={handleDismissCompleted}>
+                  Done
+                </Button>
+                <Button className="flex-1" onClick={() => navigate('/driver/dashboard')}>
+                  Go to Dashboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>
+            <DialogContent aria-describedby="rate-rider-desc-completed">
+              <DialogHeader>
+                <DialogTitle className="text-center">Rate {cr?.rider?.name ?? 'Rider'}</DialogTitle>
+              </DialogHeader>
+              <p id="rate-rider-desc-completed" className="text-sm text-muted-foreground text-center">
+                How was your experience with this rider?
+              </p>
+              <div className="space-y-4">
+                <div className="flex justify-center">
+                  <RatingStars
+                    rating={ratingValue}
+                    size="lg"
+                    interactive
+                    onChange={(value) => { setRatingValue(value); setRatingError('') }}
+                  />
+                </div>
+                <Input
+                  placeholder="Leave a comment (optional)"
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  maxLength={500}
+                />
+                {ratingError && <p className="text-sm text-destructive text-center">{ratingError}</p>}
+                <Button className="w-full" onClick={handleRateSubmit} disabled={ratingValue === 0 || rateRider.isPending}>
+                  {rateRider.isPending ? 'Submitting...' : 'Submit Rating'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )
+    }
+
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -638,10 +737,13 @@ export default function DriverCurrentRidePage() {
       </div>
 
       <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>
-        <DialogContent>
+        <DialogContent aria-describedby="rate-rider-desc-active">
           <DialogHeader>
             <DialogTitle className="text-center">Rate {currentRide?.rider?.name ?? 'Rider'}</DialogTitle>
           </DialogHeader>
+          <p id="rate-rider-desc-active" className="text-sm text-muted-foreground text-center">
+            How was your experience with this rider?
+          </p>
           <div className="space-y-4">
             <div className="flex justify-center">
               <RatingStars

@@ -60,6 +60,7 @@ import RiderProfilePage from './pages/rider/RiderProfilePage'
 import RiderSettingsPage from './pages/rider/RiderSettingsPage'
 import RiderNotificationsPage from './pages/rider/RiderNotificationsPage'
 import RiderSupportPage from './pages/rider/RiderSupportPage'
+import RiderRatingPage from './pages/rider/RiderRatingPage'
 
 // Components
 import { LoadingScreen } from './components/common/LoadingScreen'
@@ -179,6 +180,7 @@ export default function App() {
         <Route path="profile" element={<RiderProfilePage />} />
         <Route path="settings" element={<RiderSettingsPage />} />
         <Route path="notifications" element={<RiderNotificationsPage />} />
+        <Route path="ratings" element={<RiderRatingPage />} />
         <Route path="support" element={<RiderSupportPage />} />
       </Route>
 

@@ -17,6 +17,8 @@ class User extends Authenticatable
         'name',
         'email',
         'phone',
+        'address',
+        'city',
         'password',
         'gender',
         'avatar_url',
@@ -24,6 +26,7 @@ class User extends Authenticatable
         'email_verified_at',
         'phone_verified_at',
         'fcm_token',
+        'preferences',
     ];
 
     protected $hidden = [
@@ -38,6 +41,7 @@ class User extends Authenticatable
             'phone_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'preferences' => 'array',
         ];
     }
 

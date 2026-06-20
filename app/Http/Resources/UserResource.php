@@ -9,13 +9,26 @@ class UserResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $avatarUrl = $this->avatar_url;
+
+        // Normalize avatar URL to use configured app URL
+        if ($avatarUrl && !str_starts_with($avatarUrl, 'http')) {
+            $avatarUrl = rtrim(config('app.url'), '/') . '/' . ltrim($avatarUrl, '/');
+        } elseif ($avatarUrl && !str_contains($avatarUrl, (string) parse_url(config('app.url'), PHP_URL_PORT))) {
+            // Replace wrong host/port with configured app URL
+            $path = parse_url($avatarUrl, PHP_URL_PATH) ?? '';
+            $avatarUrl = rtrim(config('app.url'), '/') . $path;
+        }
+
         return [
             'id' => (string) $this->id,
             'name' => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
+            'address' => $this->address,
+            'city' => $this->city,
             'gender' => $this->gender,
-            'avatarUrl' => $this->avatar_url,
+            'avatarUrl' => $avatarUrl,
             'isActive' => $this->is_active,
             'roles' => $this->getRoleNames(),
             'emailVerifiedAt' => $this->email_verified_at?->toISOString(),

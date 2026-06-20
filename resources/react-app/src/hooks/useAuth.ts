@@ -109,9 +109,31 @@ export function useChangePassword() {
     mutationFn: ({
       currentPassword,
       newPassword,
+      newPasswordConfirmation,
     }: {
       currentPassword: string
       newPassword: string
-    }) => authApi.changePassword(currentPassword, newPassword),
+      newPasswordConfirmation: string
+    }) => authApi.changePassword(currentPassword, newPassword, newPasswordConfirmation),
+  })
+}
+
+export function useUploadAvatar() {
+  const setUser = useAuthStore((s) => s.setUser)
+  return useMutation({
+    mutationFn: (file: File) => authApi.uploadAvatar(file),
+    onSuccess: (res) => {
+      setUser(res.data as User)
+    },
+  })
+}
+
+export function useDeleteAvatar() {
+  const setUser = useAuthStore((s) => s.setUser)
+  return useMutation({
+    mutationFn: () => authApi.deleteAvatar(),
+    onSuccess: (res) => {
+      setUser(res.data as User)
+    },
   })
 }

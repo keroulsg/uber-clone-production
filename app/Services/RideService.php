@@ -193,25 +193,64 @@ class RideService
         return $ride;
     }
 
-    public function cancelRide(int $rideId, ?string $reason = null, ?string $cancelledBy = null): Ride
+    public function cancelRide(int $rideId, ?string $reason = null, ?string $cancelledBy = null, ?int $reasonId = null, ?string $comment = null): Ride
     {
         $ride = $this->rideRepo->findById($rideId);
         if (!$ride || in_array($ride->status, [RideStatus::RideCompleted, RideStatus::Cancelled])) {
             throw new \RuntimeException('Invalid state transition');
         }
 
-        $ride->update([
+        $updateData = [
             'status' => RideStatus::Cancelled,
             'cancelled_at' => now(),
             'cancelled_by' => $cancelledBy,
             'cancellation_reason' => $reason,
-        ]);
+        ];
+
+        if ($reasonId) {
+            $updateData['cancellation_reason_id'] = $reasonId;
+        }
+        if ($comment) {
+            $updateData['cancellation_comment'] = $comment;
+        }
+
+        $ride->update($updateData);
 
         RideStatusHistory::create([
             'ride_id' => $ride->id,
             'status' => RideStatus::Cancelled->value,
             'created_at' => now(),
+            'metadata' => [
+                'cancelled_by' => $cancelledBy,
+                'reason' => $reason,
+                'reason_id' => $reasonId,
+                'comment' => $comment,
+            ],
         ]);
+
+        // Send cancellation notification to rider
+        Notification::create([
+            'type' => 'ride_cancelled',
+            'notifiable_type' => \App\Models\User::class,
+            'notifiable_id' => $ride->rider_id,
+            'data' => [
+                'ride_id' => $ride->id,
+                'message' => $reason ? "Ride cancelled: {$reason}" : 'Ride was cancelled.',
+            ],
+        ]);
+
+        // Notify driver if assigned
+        if ($ride->driver_id) {
+            Notification::create([
+                'type' => 'ride_cancelled',
+                'notifiable_type' => \App\Models\User::class,
+                'notifiable_id' => $ride->driver->user_id,
+                'data' => [
+                    'ride_id' => $ride->id,
+                    'message' => $reason ? "Ride cancelled by rider: {$reason}" : 'Ride was cancelled by rider.',
+                ],
+            ]);
+        }
 
         return $ride->fresh();
     }

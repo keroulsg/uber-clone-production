@@ -17,6 +17,8 @@ use App\Http\Controllers\Api\Admin\AdminRiderController;
 use App\Http\Controllers\Api\Settlement\DriverSettlementController;
 use App\Http\Controllers\Api\Settlement\AdminSettlementController;
 use App\Http\Controllers\Api\Admin\AdminFeatureController;
+use App\Http\Controllers\Api\CancellationReasonController;
+use App\Http\Controllers\Api\SavedPlaceController;
 
 Route::prefix('v1')->group(function () {
 
@@ -44,6 +46,9 @@ Route::prefix('v1')->group(function () {
         ]);
     });
 
+    // Cancellation reasons (public — needed for both rider and driver before cancel)
+    Route::get('cancellation-reasons', [CancellationReasonController::class, 'index']);
+
     // Authenticated routes
     Route::middleware(['auth:sanctum', 'throttle:200,1,api'])->group(function () {
 
@@ -53,10 +58,18 @@ Route::prefix('v1')->group(function () {
             Route::get('user', [AuthController::class, 'user']);
             Route::post('profile', [AuthController::class, 'updateProfile']);
             Route::post('change-password', [AuthController::class, 'changePassword']);
+            Route::get('settings', [AuthController::class, 'getSettings']);
+            Route::post('settings', [AuthController::class, 'updateSettings']);
+            Route::post('avatar', [AuthController::class, 'uploadAvatar']);
+            Route::delete('avatar', [AuthController::class, 'deleteAvatar']);
         });
 
         // Fare estimate (available to all authenticated users)
         Route::post('rides/estimate-fare', [RideController::class, 'estimateFare']);
+
+        // Recent completed ride pending rating (rider or driver)
+        Route::get('rides/recent-completed-pending-rating', [RideController::class, 'recentCompletedPendingRating']);
+        Route::post('rides/{ride}/dismiss-completed', [RideController::class, 'dismissCompleted']);
 
         // Rides (rider only via role or rider profile)
         Route::prefix('rides')->middleware('role_or_profile:rider,App\Models\Rider')->group(function () {
@@ -67,6 +80,15 @@ Route::prefix('v1')->group(function () {
             Route::get('{id}', [RideController::class, 'show']);
             Route::post('{id}/cancel', [RideController::class, 'cancel']);
             Route::post('{id}/accept-any-driver', [RideController::class, 'acceptAnyDriver']);
+        });
+
+        // Saved Places
+        Route::prefix('saved-places')->group(function () {
+            Route::get('/', [SavedPlaceController::class, 'index']);
+            Route::post('/', [SavedPlaceController::class, 'store']);
+            Route::get('{id}', [SavedPlaceController::class, 'show']);
+            Route::put('{id}', [SavedPlaceController::class, 'update']);
+            Route::delete('{id}', [SavedPlaceController::class, 'destroy']);
         });
 
         // Driver Rides
@@ -125,6 +147,8 @@ Route::prefix('v1')->group(function () {
         Route::prefix('ratings')->group(function () {
             Route::post('driver', [RatingController::class, 'rateDriver']);
             Route::post('rider', [RatingController::class, 'rateRider']);
+            Route::get('driver/me', [RatingController::class, 'myDriverRatings']);
+            Route::get('rider/me', [RatingController::class, 'myRiderRatings']);
             Route::get('driver/{driverId}', [RatingController::class, 'driverRatings']);
             Route::get('rider/{riderId}', [RatingController::class, 'riderRatings']);
         });

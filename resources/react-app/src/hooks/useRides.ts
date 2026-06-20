@@ -37,8 +37,8 @@ export function useCancelRide() {
   const queryClient = useQueryClient()
   const clearCurrentRide = useRideStore((s) => s.clearCurrentRide)
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
-      ridesApi.cancelRide(id, reason),
+    mutationFn: ({ id, reason, reasonId, comment }: { id: string; reason?: string; reasonId?: number; comment?: string }) =>
+      ridesApi.cancelRide(id, reason, reasonId, comment),
     onSuccess: (_res, vars) => {
       clearCurrentRide()
       queryClient.invalidateQueries({ queryKey: ['rides', vars.id] })
@@ -75,10 +75,36 @@ export function useCurrentRide() {
         setCurrentRide(res.data as Ride)
         return res.data as Ride | null
       }
+      clearCurrentRide()
       return null
     },
     enabled: !!token,
     refetchInterval: 3000,
     refetchIntervalInBackground: true,
+  })
+}
+
+export function useRecentCompletedPendingRating() {
+  const token = useAuthStore((s) => s.token)
+  return useQuery({
+    queryKey: ['rides', 'recent-completed-pending-rating'],
+    queryFn: async () => {
+      const res = await ridesApi.getRecentCompletedPendingRating()
+      return res.data as Ride | null
+    },
+    enabled: !!token,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+  })
+}
+
+export function useDismissCompleted() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (rideId: string) => ridesApi.dismissCompleted(rideId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rides', 'recent-completed-pending-rating'] })
+      queryClient.invalidateQueries({ queryKey: ['rides'] })
+    },
   })
 }

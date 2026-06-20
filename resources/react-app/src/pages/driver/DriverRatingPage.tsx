@@ -1,15 +1,11 @@
 import { useState, useMemo } from 'react'
 import {
-  Star, MessageSquare, ThumbsUp, ThumbsDown, Filter,
+  Star, MessageSquare,
 } from 'lucide-react'
-import { useDriverRatings } from '@/hooks/useRatings'
-import { useDriverStore } from '@/stores/driverStore'
+import { useMyDriverRatings } from '@/hooks/useRatings'
 import { formatDate } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -20,40 +16,25 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { EmptyState } from '@/components/common/EmptyState'
 import type { Rating } from '@/types'
 
-type FilterType = 'all' | 'positive' | 'negative'
+type FilterType = 'all' | '5' | '4' | '3' | '2' | '1'
 
 export default function DriverRatingPage() {
-  const { driverProfile } = useDriverStore()
   const [filter, setFilter] = useState<FilterType>('all')
 
-  const { data, isLoading, error, refetch } = useDriverRatings(driverProfile?.id ?? '', {})
+  const { data, isLoading, error, refetch } = useMyDriverRatings()
 
-  const ratings = (data?.data?.data ?? []) as Rating[]
-  const totalRatings = ratings.length
+  const response = data?.data
+  const ratings = (response?.data ?? []) as Rating[]
+  const meta = response?.meta as { averageRating: number; totalReviews: number; distribution: Record<number, number> } | undefined
 
-  const distribution = useMemo(() => {
-    const dist = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
-    ratings.forEach((r) => {
-      const key = Math.round(r.rating) as keyof typeof dist
-      if (key >= 1 && key <= 5) dist[key]++
-    })
-    return dist
-  }, [ratings])
-
-  const averageRating = useMemo(() => {
-    if (ratings.length === 0) return 0
-    return ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
-  }, [ratings])
+  const averageRating = meta?.averageRating ?? 0
+  const totalRatings = meta?.totalReviews ?? ratings.length
+  const distribution = meta?.distribution ?? { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
 
   const filteredRatings = useMemo(() => {
-    switch (filter) {
-      case 'positive':
-        return ratings.filter((r) => r.rating >= 4)
-      case 'negative':
-        return ratings.filter((r) => r.rating <= 2)
-      default:
-        return ratings
-    }
+    if (filter === 'all') return ratings
+    const star = parseInt(filter)
+    return ratings.filter((r) => Math.round(r.rating) === star)
   }, [ratings, filter])
 
   if (isLoading) return <LoadingScreen />
@@ -64,7 +45,6 @@ export default function DriverRatingPage() {
       <PageHeader title="Ratings & Reviews" description="See what riders think about you" />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Average Rating */}
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-6xl font-bold mb-2">{averageRating.toFixed(1)}</p>
@@ -75,14 +55,13 @@ export default function DriverRatingPage() {
           </CardContent>
         </Card>
 
-        {/* Rating Distribution */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Rating Distribution</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {([5, 4, 3, 2, 1] as const).map((star) => {
-              const count = distribution[star]
+              const count = distribution[star] ?? 0
               const percentage = totalRatings > 0 ? (count / totalRatings) * 100 : 0
               return (
                 <div key={star} className="flex items-center gap-3">
@@ -98,7 +77,6 @@ export default function DriverRatingPage() {
         </Card>
       </div>
 
-      {/* Reviews */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -109,18 +87,11 @@ export default function DriverRatingPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Reviews</SelectItem>
-                <SelectItem value="positive">
-                  <div className="flex items-center gap-2">
-                    <ThumbsUp className="h-3.5 w-3.5 text-emerald-500" />
-                    Positive
-                  </div>
-                </SelectItem>
-                <SelectItem value="negative">
-                  <div className="flex items-center gap-2">
-                    <ThumbsDown className="h-3.5 w-3.5 text-red-500" />
-                    Negative
-                  </div>
-                </SelectItem>
+                <SelectItem value="5">5 Stars</SelectItem>
+                <SelectItem value="4">4 Stars</SelectItem>
+                <SelectItem value="3">3 Stars</SelectItem>
+                <SelectItem value="2">2 Stars</SelectItem>
+                <SelectItem value="1">1 Star</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -136,12 +107,14 @@ export default function DriverRatingPage() {
                     <div className="flex items-center gap-3">
                       <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
                         <span className="font-bold text-primary">
-                          {rating.rater?.name?.charAt(0)}
+                          {rating.rater?.name?.charAt(0) ?? 'R'}
                         </span>
                       </div>
                       <div>
-                        <p className="font-medium text-sm">{rating.rater?.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(rating.createdAt)}</p>
+                        <p className="font-medium text-sm">{rating.rater?.name ?? 'Rider'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {rating.ride?.bookingId ? `Ride ${rating.ride.bookingId}` : ''} &middot; {formatDate(rating.createdAt)}
+                        </p>
                       </div>
                     </div>
                     <RatingStars rating={rating.rating} size="sm" />

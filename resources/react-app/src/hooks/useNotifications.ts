@@ -4,6 +4,7 @@ import * as notificationsApi from '../api/notifications'
 
 interface UseNotificationsOptions {
   enabled?: boolean
+  refetchInterval?: number | false
 }
 
 export function useNotifications(params?: Record<string, unknown>, options?: UseNotificationsOptions) {
@@ -16,6 +17,8 @@ export function useNotifications(params?: Record<string, unknown>, options?: Use
       return res
     },
     enabled: options?.enabled,
+    refetchInterval: options?.refetchInterval ?? false,
+    refetchIntervalInBackground: true,
   })
 }
 

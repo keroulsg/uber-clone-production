@@ -44,10 +44,16 @@ export const createRide = (
 
 export const cancelRide = (
   id: string,
-  cancellationReason?: string
+  cancellationReason?: string,
+  cancellationReasonId?: number,
+  cancellationComment?: string
 ): Promise<ApiResponse<Ride>> =>
   apiClient
-    .post(`/rides/${id}/cancel`, { cancellation_reason: cancellationReason })
+    .post(`/rides/${id}/cancel`, {
+      cancellation_reason: cancellationReason,
+      cancellation_reason_id: cancellationReasonId,
+      cancellation_comment: cancellationComment,
+    })
     .then((r) => r.data)
 
 const normalizeEstimateFareParams = (params: Record<string, unknown>) => {
@@ -76,6 +82,12 @@ export const estimateFare = (
 
 export const getCurrentRide = (): Promise<ApiResponse<Ride | null>> =>
   apiClient.get('/rides/current').then((r) => r.data)
+
+export const getRecentCompletedPendingRating = (): Promise<ApiResponse<Ride | null>> =>
+  apiClient.get('/rides/recent-completed-pending-rating').then((r) => r.data)
+
+export const dismissCompleted = (rideId: string): Promise<ApiResponse<Ride>> =>
+  apiClient.post(`/rides/${rideId}/dismiss-completed`).then((r) => r.data)
 
 export const trackDriver = (
   driverId: string
