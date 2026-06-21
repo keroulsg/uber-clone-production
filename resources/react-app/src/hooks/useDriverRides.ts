@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { useRideStore } from '../stores/rideStore'
 import { useAuthStore } from '../stores/authStore'
 import * as driverRidesApi from '../api/driver-rides'
@@ -20,12 +21,14 @@ export function usePendingRides() {
 export function useAcceptRide() {
   const queryClient = useQueryClient()
   const setCurrentRide = useRideStore((s) => s.setCurrentRide)
+  const navigate = useNavigate()
   return useMutation({
     mutationFn: (rideId: string) => driverRidesApi.acceptRide(rideId),
     onSuccess: (res) => {
       stopAllSoundLoops()
       setCurrentRide(res.data as Ride)
       queryClient.invalidateQueries({ queryKey: ['driver-rides'] })
+      navigate('/driver/current-ride')
     },
   })
 }
