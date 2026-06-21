@@ -6,6 +6,8 @@ import {
 import { useEarnings } from '@/hooks/useDrivers'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
@@ -22,7 +24,9 @@ type Period = 'daily' | 'weekly' | 'monthly'
 
 export default function DriverEarningsPage() {
   const [period, setPeriod] = useState<Period>('daily')
-  const { data, isLoading, error, refetch } = useEarnings()
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const { data, isLoading, error, refetch } = useEarnings(fromDate || undefined, toDate || undefined)
 
   const earningsData = data?.data as {
     today: number
@@ -55,6 +59,35 @@ export default function DriverEarningsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Earnings" description="Track your earnings and transactions" />
+
+      {/* Date Filter */}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-1">
+          <Label htmlFor="from-date" className="text-xs">From</Label>
+          <Input
+            id="from-date"
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="h-9 w-44"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="to-date" className="text-xs">To</Label>
+          <Input
+            id="to-date"
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="h-9 w-44"
+          />
+        </div>
+        {(fromDate || toDate) && (
+          <Button variant="ghost" size="sm" className="h-9" onClick={() => { setFromDate(''); setToDate('') }}>
+            Clear
+          </Button>
+        )}
+      </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

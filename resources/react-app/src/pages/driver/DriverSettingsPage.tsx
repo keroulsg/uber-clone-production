@@ -1,38 +1,65 @@
 import { useState, useEffect } from 'react'
 import {
-  Bell, MessageSquare, DollarSign, Globe,
-  Moon, Sun, Shield, AlertTriangle, Trash, Wallet, Volume2, Save, LifeBuoy,
+  Volume2, Moon, Wallet, AlertTriangle, LifeBuoy, VolumeX,
 } from 'lucide-react'
 import { playNotificationSound, unlockNotificationSound } from '@/lib/notificationSound'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
-import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { PageHeader } from '@/components/common/PageHeader'
 import { getDriverPayout, updateDriverPayout, type PayoutInfo } from '@/api/drivers'
+import { useUserSettings, useUpdateUserSettings } from '@/hooks/useUserSettings'
 
 export default function DriverSettingsPage() {
-  const [notifications, setNotifications] = useState({
-    rideRequests: true,
-    newMessages: true,
-    earningsReports: true,
-    rideReminders: true,
-    promotions: false,
-  })
+  const { data: settings } = useUserSettings()
+  const updateSettings = useUpdateUserSettings()
 
-  const [language, setLanguage] = useState('en')
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [notificationVolume, setNotificationVolume] = useState(100)
-  const [deactivateOpen, setDeactivateOpen] = useState(false)
+
+  useEffect(() => {
+    if (settings?.data?.notifications) {
+      setSoundEnabled(settings.data.notifications.soundEnabled ?? true)
+      setNotificationVolume(settings.data.notifications.notificationVolume ?? 100)
+    }
+  }, [settings])
+
+  const handleSoundToggle = (v: boolean) => {
+    setSoundEnabled(v)
+    updateSettings.mutate({
+      notifications: {
+        pushRideUpdates: settings?.data?.notifications?.pushRideUpdates ?? true,
+        smsRideUpdates: settings?.data?.notifications?.smsRideUpdates ?? false,
+        emailRideUpdates: settings?.data?.notifications?.emailRideUpdates ?? true,
+        pushPromotions: settings?.data?.notifications?.pushPromotions ?? false,
+        emailPromotions: settings?.data?.notifications?.emailPromotions ?? false,
+        soundEnabled: v,
+        notificationVolume: settings?.data?.notifications?.notificationVolume ?? 100,
+      },
+    })
+  }
+
+  const handleVolumeChange = (v: number) => {
+    setNotificationVolume(v)
+    updateSettings.mutate({
+      notifications: {
+        pushRideUpdates: settings?.data?.notifications?.pushRideUpdates ?? true,
+        smsRideUpdates: settings?.data?.notifications?.smsRideUpdates ?? false,
+        emailRideUpdates: settings?.data?.notifications?.emailRideUpdates ?? true,
+        pushPromotions: settings?.data?.notifications?.pushPromotions ?? false,
+        emailPromotions: settings?.data?.notifications?.emailPromotions ?? false,
+        soundEnabled: settings?.data?.notifications?.soundEnabled ?? true,
+        notificationVolume: v,
+      },
+    })
+  }
 
   const [payout, setPayout] = useState<PayoutInfo>({
     payout_method: null,
@@ -69,75 +96,38 @@ export default function DriverSettingsPage() {
     <div className="space-y-6">
       <PageHeader title="Settings" description="Manage your account and app preferences" />
 
-      {/* Notification Preferences */}
+      {/* Sound */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Notification Preferences
+            <Volume2 className="h-5 w-5" />
+            Sound
           </CardTitle>
-          <CardDescription>Control which notifications you receive</CardDescription>
+          <CardDescription>Configure notification sound for ride requests</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-start gap-3">
-              <MessageSquare className="h-5 w-5 text-muted-foreground mt-0.5" />
+              {soundEnabled ? (
+                <Volume2 className="h-5 w-5 text-muted-foreground mt-0.5" />
+              ) : (
+                <VolumeX className="h-5 w-5 text-muted-foreground mt-0.5" />
+              )}
               <div>
-                <Label htmlFor="ride-requests" className="font-medium">Ride Requests</Label>
-                <p className="text-sm text-muted-foreground">Get notified when a new ride request comes in</p>
-              </div>
-            </div>
-            <Switch
-              id="ride-requests"
-              checked={notifications.rideRequests}
-              onCheckedChange={(v) => setNotifications((n) => ({ ...n, rideRequests: v }))}
-            />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div className="flex items-start gap-3">
-              <MessageSquare className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <Label htmlFor="new-messages" className="font-medium">New Messages</Label>
-                <p className="text-sm text-muted-foreground">Get notified when you receive a new message</p>
-              </div>
-            </div>
-            <Switch
-              id="new-messages"
-              checked={notifications.newMessages}
-              onCheckedChange={(v) => setNotifications((n) => ({ ...n, newMessages: v }))}
-            />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div className="flex items-start gap-3">
-              <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <Label htmlFor="earnings-reports" className="font-medium">Earnings Reports</Label>
-                <p className="text-sm text-muted-foreground">Get weekly and monthly earnings summaries</p>
-              </div>
-            </div>
-            <Switch
-              id="earnings-reports"
-              checked={notifications.earningsReports}
-              onCheckedChange={(v) => setNotifications((n) => ({ ...n, earningsReports: v }))}
-            />
-          </div>
-
-          <Separator />
-          <p className="text-sm font-medium text-muted-foreground pt-2">Sound</p>
-          <div className="flex items-center justify-between">
-            <div className="flex items-start gap-3">
-              <Volume2 className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <Label htmlFor="sound-driver" className="font-medium">Notification Sound</Label>
-                <p className="text-sm text-muted-foreground">Play sound for ride requests and important alerts</p>
+                <Label htmlFor="sound-toggle" className="font-medium">Notification Sound</Label>
+                <p className="text-sm text-muted-foreground">Play sound for new ride requests</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Switch
+                id="sound-toggle"
+                checked={soundEnabled}
+                onCheckedChange={handleSoundToggle}
+              />
               <Button
                 variant="outline"
                 size="sm"
+                disabled={!soundEnabled}
                 onClick={() => {
                   unlockNotificationSound()
                   playNotificationSound(notificationVolume)
@@ -145,92 +135,36 @@ export default function DriverSettingsPage() {
               >
                 Test
               </Button>
-              <Switch
-                id="sound-driver"
-                checked={soundEnabled}
-                onCheckedChange={setSoundEnabled}
-              />
             </div>
           </div>
-          <div className="flex items-center gap-3 mt-3">
-            <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={notificationVolume}
-              onChange={(e) => setNotificationVolume(parseInt(e.target.value))}
-              disabled={!soundEnabled}
-              className="flex-1 accent-primary"
-            />
-            <span className="text-sm text-muted-foreground w-10 text-right">{notificationVolume}%</span>
-          </div>
+          {soundEnabled && (
+            <div className="flex items-center gap-3">
+              <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={notificationVolume}
+                onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
+                className="flex-1 accent-primary"
+              />
+              <span className="text-sm text-muted-foreground w-10 text-right">{notificationVolume}%</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Appearance & Language */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Moon className="h-5 w-5" />
-              Appearance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ThemeToggle />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Language
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Select value={language} onValueChange={setLanguage}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="en">English</SelectItem>
-                <SelectItem value="es">Español</SelectItem>
-                <SelectItem value="fr">Français</SelectItem>
-                <SelectItem value="de">Deutsch</SelectItem>
-                <SelectItem value="ar">العربية</SelectItem>
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Privacy */}
+      {/* Appearance */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Privacy
+            <Moon className="h-5 w-5" />
+            Appearance
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="show-profile" className="font-medium">Show my profile to riders</Label>
-              <p className="text-sm text-muted-foreground">Riders can see your name, photo and rating</p>
-            </div>
-            <Switch id="show-profile" defaultChecked />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="share-location" className="font-medium">Share live location</Label>
-              <p className="text-sm text-muted-foreground">Riders can see your real-time location during a ride</p>
-            </div>
-            <Switch id="share-location" defaultChecked />
-          </div>
+        <CardContent>
+          <ThemeToggle />
         </CardContent>
       </Card>
 
@@ -296,7 +230,7 @@ export default function DriverSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Account Deactivation */}
+      {/* Danger Zone */}
       <Card className="border-destructive/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-destructive">

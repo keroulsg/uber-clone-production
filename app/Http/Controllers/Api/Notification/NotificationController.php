@@ -14,8 +14,13 @@ class NotificationController extends Controller
     {
         $paginator = Notification::where('notifiable_id', $request->user()->id)
             ->where('notifiable_type', get_class($request->user()))
-            ->latest()
-            ->paginate(20);
+            ->latest();
+
+        if ($request->boolean('unread')) {
+            $paginator->whereNull('read_at');
+        }
+
+        $paginator = $paginator->paginate(20);
 
         return response()->json([
             'success' => true,

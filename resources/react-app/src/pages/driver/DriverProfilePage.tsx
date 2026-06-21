@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useNavigate } from 'react-router-dom'
 import {
-  Camera, Save, Upload, Eye, EyeOff,
+  Camera, Save, Upload, Eye, EyeOff, FileText, ArrowRight,
 } from 'lucide-react'
 import { useDriverProfile, useUpdateDriverProfile } from '@/hooks/useDrivers'
 import { useChangePassword } from '@/hooks/useAuth'
@@ -16,11 +17,12 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { FileUpload } from '@/components/common/FileUpload'
 import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingScreen } from '@/components/common/LoadingScreen'
 import { ErrorState } from '@/components/common/ErrorState'
 import { getInitials } from '@/lib/utils'
+import apiClient from '@/api/client'
+import { toast } from 'sonner'
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -40,9 +42,33 @@ export default function DriverProfilePage() {
   const { data, isLoading, error, refetch } = useDriverProfile()
   const updateProfile = useUpdateDriverProfile()
   const changePassword = useChangePassword()
+  const navigate = useNavigate()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingAvatar(true)
+    try {
+      const formData = new FormData()
+      formData.append('avatar', file)
+      await apiClient.post('/auth/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      toast.success('Profile photo updated')
+      refetch()
+    } catch {
+      toast.error('Failed to upload profile photo')
+    } finally {
+      setUploadingAvatar(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -125,9 +151,18 @@ export default function DriverProfilePage() {
                 size="icon"
                 variant="secondary"
                 className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
               >
                 <Camera className="h-4 w-4" />
               </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
             </div>
             <h3 className="font-semibold text-lg">{driverProfile?.user.name}</h3>
             <p className="text-sm text-muted-foreground mb-3">{driverProfile?.user.email}</p>
@@ -196,41 +231,22 @@ export default function DriverProfilePage() {
           <CardTitle>Documents</CardTitle>
           <CardDescription>Upload your license and identity documents for verification</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Driver License (Front)</Label>
-                <Badge variant={docStatus.variant}>{docStatus.label}</Badge>
+        <CardContent>
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <FileText className="h-8 w-8 text-muted-foreground" />
+              <div>
+                <p className="font-medium">Verification Documents</p>
+                <p className="text-sm text-muted-foreground">
+                  Status: <Badge variant={docStatus.variant} className="ml-1">{docStatus.label}</Badge>
+                </p>
               </div>
-              <FileUpload accept="image/*" maxSize={5 * 1024 * 1024} />
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Driver License (Back)</Label>
-                <Badge variant={docStatus.variant}>{docStatus.label}</Badge>
-              </div>
-              <FileUpload accept="image/*" maxSize={5 * 1024 * 1024} />
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Identity Proof (Front)</Label>
-                <Badge variant={docStatus.variant}>{docStatus.label}</Badge>
-              </div>
-              <FileUpload accept="image/*,application/pdf" maxSize={5 * 1024 * 1024} />
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Identity Proof (Back)</Label>
-                <Badge variant={docStatus.variant}>{docStatus.label}</Badge>
-              </div>
-              <FileUpload accept="image/*,application/pdf" maxSize={5 * 1024 * 1024} />
-            </div>
+            <Button variant="outline" className="gap-2" onClick={() => navigate('/driver/documents')}>
+              Manage Documents
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </div>
-          <Button variant="outline" className="gap-2">
-            <Upload className="h-4 w-4" />
-            Upload Documents
-          </Button>
         </CardContent>
       </Card>
 

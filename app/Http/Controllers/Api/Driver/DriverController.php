@@ -90,6 +90,14 @@ class DriverController extends Controller
 
         $allPayments = \App\Models\Payment::whereHas('ride', fn($q) => $q->where('driver_id', $driver->id))
             ->where('status', \App\Enums\PaymentStatus::Completed);
+
+        if ($request->filled('from')) {
+            $allPayments->whereDate('paid_at', '>=', $request->from);
+        }
+        if ($request->filled('to')) {
+            $allPayments->whereDate('paid_at', '<=', $request->to);
+        }
+
         $totalEarnings = (float) $allPayments->sum('driver_amount');
         $cashPayments = (clone $allPayments)->where('payment_method', 'cash');
         $walletPayments = (clone $allPayments)->where('payment_method', 'wallet');

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
-  Plus, Edit, Shield, FileText, Car, Trash,
+  Plus, Edit, Shield, FileText, Car, Trash, LifeBuoy,
   CheckCircle, XCircle, Clock,
 } from 'lucide-react'
 import { useVehicles, useVehicleTypes, useRegisterVehicle, useUpdateVehicle, useUploadDocument } from '@/hooks/useVehicles'
@@ -202,10 +202,12 @@ export default function DriverVehiclePage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="gap-2 text-destructive"
+                    className="gap-2 text-muted-foreground"
+                    disabled
+                    title="Vehicle removal requires support/admin review"
                   >
-                    <Trash className="h-4 w-4" />
-                    Remove
+                    <LifeBuoy className="h-4 w-4" />
+                    Contact Support
                   </Button>
                 </div>
 
