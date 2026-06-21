@@ -8,16 +8,16 @@ class DriverPolicy
 {
     public function viewAny(User $user): bool
     {
-        return in_array('admin', $user->getRoleNames()->toArray());
+        return in_array('admin', $user->roles ?? []);
     }
 
     public function view(User $user, User $model): bool
     {
-        return $user->id === $model->id || in_array('admin', $user->getRoleNames()->toArray());
+        return $user->id === $model->id || in_array('admin', $user->roles ?? []);
     }
 
     public function update(User $user, User $model): bool
     {
-        return $user->id === $model->id || in_array('admin', $user->getRoleNames()->toArray());
+        return $user->id === $model->id || in_array('admin', $user->roles ?? []);
     }
 }

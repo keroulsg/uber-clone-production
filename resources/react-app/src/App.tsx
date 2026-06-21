@@ -30,8 +30,6 @@ import AdminNotificationsPage from './pages/admin/AdminNotificationsPage'
 import AdminSettingsPage from './pages/admin/AdminSettingsPage'
 import AdminPricingCalculatorPage from './pages/admin/AdminPricingCalculatorPage'
 import AdminFeatureManagementPage from './pages/admin/AdminFeatureManagementPage'
-import AdminStaffPage from './pages/admin/AdminStaffPage'
-import AdminRolesPage from './pages/admin/AdminRolesPage'
 import AdminDriverProfilePage from './pages/admin/AdminDriverProfilePage'
 import AdminRiderProfilePage from './pages/admin/AdminRiderProfilePage'
 import AdminRideDetailPage from './pages/admin/AdminRideDetailPage'
@@ -151,8 +149,6 @@ export default function App() {
         <Route path="notifications" element={<AdminNotificationsPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="features" element={<AdminFeatureManagementPage />} />
-        <Route path="staff" element={<AdminStaffPage />} />
-        <Route path="roles" element={<AdminRolesPage />} />
         <Route path="pricing-calculator" element={<AdminPricingCalculatorPage />} />
       </Route>
 

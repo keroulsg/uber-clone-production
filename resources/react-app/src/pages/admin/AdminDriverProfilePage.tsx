@@ -10,7 +10,6 @@ import {
   useApproveDriver, useRejectDriver, useSuspendDriver, useReactivateDriver,
   useAddDriverWarning, useAddDriverPenalty,
   useBlockDriver, useUnblockDriver, useBanHistory,
-  useApproveDriverVerification, useRejectDriverVerification,
 } from '@/hooks/useAdmin'
 import { getDriverSettlements, approveSettlement, rejectSettlement } from '@/api/admin'
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
@@ -42,8 +41,6 @@ export default function AdminDriverProfilePage() {
   const addPenalty = useAddDriverPenalty()
   const blockDriver = useBlockDriver()
   const unblockDriver = useUnblockDriver()
-  const approveDriverVerification = useApproveDriverVerification()
-  const rejectDriverVerification = useRejectDriverVerification()
 
   const [confirmAction, setConfirmAction] = useState<string | null>(null)
   const [warningDialog, setWarningDialog] = useState(false)
@@ -53,19 +50,11 @@ export default function AdminDriverProfilePage() {
   const [warningReason, setWarningReason] = useState('')
   const [penaltyReason, setPenaltyReason] = useState('')
   const [penaltyAmount, setPenaltyAmount] = useState('')
-  const [rejectVerificationDialog, setRejectVerificationDialog] = useState(false)
-  const [rejectVerificationReason, setRejectVerificationReason] = useState('')
 
   const result = data?.data as any
   const driver: Driver | null = result?.driver ?? null
-  const verificationDoc = (() => {
-    const raw = (driver as any)?.verificationDocument
-    if (!raw) return null
-    try { return typeof raw === 'string' ? JSON.parse(raw) : raw } catch { return null }
-  })()
   const performance = result?.performance ?? {}
   const companyDues = result?.company_dues ?? {}
-  const documents = result?.documents ?? {}
   const recentFinanceRows = result?.recent_finance_rows ?? []
   const warnings = result?.warnings ?? []
   const penalties = result?.penalties ?? []
@@ -147,29 +136,6 @@ export default function AdminDriverProfilePage() {
     toast.success('Driver unblocked')
     refetch()
     setConfirmAction(null)
-  }
-
-  const handleApproveVerification = async () => {
-    if (!driver) return
-    try {
-      await approveDriverVerification.mutateAsync(driver.id)
-      toast.success('Driver verification approved')
-      refetch()
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Failed to approve verification')
-    }
-  }
-  const handleRejectVerification = async () => {
-    if (!driver || !rejectVerificationReason.trim()) return
-    try {
-      await rejectDriverVerification.mutateAsync({ id: driver.id, reason: rejectVerificationReason })
-      toast.success('Driver verification rejected')
-      setRejectVerificationDialog(false)
-      setRejectVerificationReason('')
-      refetch()
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Failed to reject verification')
-    }
   }
 
   if (isLoading) return <LoadingScreen message="Loading driver..." />
@@ -305,65 +271,6 @@ export default function AdminDriverProfilePage() {
             <div><p className="text-muted-foreground">Warnings</p><p className="font-medium text-lg">{warnings?.length ?? 0}</p></div>
             <div><p className="text-muted-foreground">Penalties</p><p className="font-medium text-lg">{penalties?.length ?? 0}</p></div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Driver Documents */}
-      <Card>
-        <CardHeader><CardTitle>Driver Documents</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            {[
-              { label: 'License Front', key: 'license_front_image' },
-              { label: 'License Back', key: 'license_back_image' },
-              { label: 'National ID Front', key: 'identity_front_image' },
-              { label: 'National ID Back', key: 'identity_back_image' },
-              { label: 'Criminal Record', key: 'criminal_record' },
-            ].map((doc) => {
-              const url = (documents as any)[doc.key]
-              return (
-                <div key={doc.key}>
-                  <p className="text-muted-foreground mb-1">{doc.label}</p>
-                  {url ? (
-                    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                      <Eye className="h-3 w-3" /> View
-                    </a>
-                  ) : (
-                    <Badge variant="secondary">Not uploaded</Badge>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          <div className="flex items-center justify-between mt-4 pt-4 border-t">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Verification:</span>
-              {!verificationDoc ? (
-                <Badge variant="secondary">Not Submitted</Badge>
-              ) : verificationDoc.status === 'verified' ? (
-                <Badge className="bg-emerald-100 text-emerald-700">Verified</Badge>
-              ) : verificationDoc.status === 'rejected' ? (
-                <Badge variant="destructive">Rejected</Badge>
-              ) : verificationDoc.status === 'pending_review' ? (
-                <Badge className="bg-amber-100 text-amber-700">Pending Review</Badge>
-              ) : (
-                <Badge variant="secondary">Not Submitted</Badge>
-              )}
-            </div>
-            {verificationDoc?.status === 'pending_review' && (
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleApproveVerification}>
-                  <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => setRejectVerificationDialog(true)}>
-                  <XCircle className="h-4 w-4 mr-1" /> Reject
-                </Button>
-              </div>
-            )}
-          </div>
-          {verificationDoc?.status === 'rejected' && verificationDoc?.rejection_reason && (
-            <p className="text-xs text-red-500 mt-2">Rejection reason: {verificationDoc.rejection_reason}</p>
-          )}
         </CardContent>
       </Card>
 
@@ -626,20 +533,6 @@ export default function AdminDriverProfilePage() {
             <div><Label>Reason</Label><Input value={penaltyReason} onChange={(e) => setPenaltyReason(e.target.value)} placeholder="Describe the reason" /></div>
             <div><Label>Amount</Label><Input type="number" value={penaltyAmount} onChange={(e) => setPenaltyAmount(e.target.value)} placeholder="0.00" /></div>
             <Button onClick={handleAddPenalty} disabled={!penaltyReason.trim() || !penaltyAmount}>Add Penalty</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={rejectVerificationDialog} onOpenChange={setRejectVerificationDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Verification</DialogTitle>
-            <DialogDescription>Provide a reason for rejecting this driver's document verification.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Label>Reason</Label>
-            <Input value={rejectVerificationReason} onChange={(e) => setRejectVerificationReason(e.target.value)} placeholder="Reason for rejection" />
-            <Button variant="destructive" onClick={handleRejectVerification} disabled={!rejectVerificationReason.trim()}>Reject Verification</Button>
           </div>
         </DialogContent>
       </Dialog>

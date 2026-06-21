@@ -357,14 +357,6 @@ export interface PaginatedResponse<T> {
     from: number
     to: number
   }
-  summary?: {
-    total_revenue?: number
-    total_fees?: number
-    total_driver_payouts?: number
-    total_count?: number
-    cash_total?: number
-    wallet_total?: number
-  }
 }
 
 export interface ApiResponse<T> {

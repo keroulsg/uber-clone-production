@@ -8,11 +8,11 @@ class VehiclePolicy
 {
     public function create(User $user): bool
     {
-        return in_array('driver', $user->getRoleNames()->toArray());
+        return in_array('driver', $user->roles ?? []);
     }
 
     public function update(User $user, User $model): bool
     {
-        return in_array('driver', $user->getRoleNames()->toArray());
+        return in_array('driver', $user->roles ?? []);
     }
 }
