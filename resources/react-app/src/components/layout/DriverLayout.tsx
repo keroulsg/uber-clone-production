@@ -27,7 +27,7 @@ import { queryClient } from '@/lib/queryClient'
 
 const navItems = [
   { icon: Navigation, label: 'Current Ride', href: '/driver/current-ride' },
-  { icon: ListOrdered, label: 'Ride Requests', href: '/driver/requests' },
+  { icon: ListOrdered, label: 'Ride Requests', href: '/driver/rides' },
   { icon: DollarSign, label: 'Earnings', href: '/driver/earnings' },
   { icon: Wallet, label: 'Wallet', href: '/driver/wallet' },
   { icon: History, label: 'Ride History', href: '/driver/history' },

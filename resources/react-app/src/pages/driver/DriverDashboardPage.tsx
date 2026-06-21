@@ -403,7 +403,7 @@ export default function DriverDashboardPage() {
                       </div>
                     </div>
                   ))}
-                  <Button variant="link" className="w-full mt-2" onClick={() => navigate('/driver/rides/history')}>
+                    <Button variant="link" className="w-full mt-2" onClick={() => navigate('/driver/history')}>
                     View All Rides
                   </Button>
                 </div>

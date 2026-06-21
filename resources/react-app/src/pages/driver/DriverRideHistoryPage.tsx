@@ -83,6 +83,10 @@ export default function DriverRideHistoryPage() {
           setRatingError('')
           refetch()
         },
+        onError: (err: any) => {
+          const msg = err?.response?.data?.message || 'Rating failed. Please try again.'
+          setRatingError(msg)
+        },
       }
     )
   }

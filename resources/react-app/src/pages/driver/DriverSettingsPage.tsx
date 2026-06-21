@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Bell, MessageSquare, DollarSign, Globe,
-  Moon, Sun, Shield, AlertTriangle, Trash, Wallet, Volume2, Save,
+  Moon, Sun, Shield, AlertTriangle, Trash, Wallet, Volume2, Save, LifeBuoy,
 } from 'lucide-react'
 import { playNotificationSound, unlockNotificationSound } from '@/lib/notificationSound'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -310,32 +310,18 @@ export default function DriverSettingsPage() {
             <div>
               <Label className="font-medium">Deactivate Account</Label>
               <p className="text-sm text-muted-foreground">
-                Permanently deactivate your driver account and stop receiving rides
+                Account deactivation request will be handled by support. Please contact support.
               </p>
             </div>
-            <Button
-              variant="destructive"
-              className="gap-2"
-              onClick={() => setDeactivateOpen(true)}
-            >
-              <Trash className="h-4 w-4" />
-              Deactivate
+            <Button variant="outline" className="gap-2" asChild>
+              <a href="/driver/support">
+                <LifeBuoy className="h-4 w-4" />
+                Contact Support
+              </a>
             </Button>
           </div>
         </CardContent>
       </Card>
-
-      <ConfirmDialog
-        open={deactivateOpen}
-        onOpenChange={setDeactivateOpen}
-        title="Deactivate Account"
-        description="Are you sure you want to deactivate your account? This action cannot be undone. All your data will be permanently removed."
-        confirmText="Deactivate"
-        variant="destructive"
-        onConfirm={() => {
-          setDeactivateOpen(false)
-        }}
-      />
     </div>
   )
 }

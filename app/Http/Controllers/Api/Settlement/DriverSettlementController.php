@@ -67,10 +67,20 @@ class DriverSettlementController extends Controller
             ->whereNull('paid_at')
             ->sum('amount');
 
-        if ((float) $validated['amount'] > $outstandingDebt) {
+        $pendingSum = (float) DriverSettlement::where('driver_id', $driver->id)
+            ->where('status', 'pending')
+            ->sum('amount');
+
+        $availableToSettle = $outstandingDebt - $pendingSum;
+
+        if ((float) $validated['amount'] > $availableToSettle) {
+            $remaining = number_format(max(0, $availableToSettle), 2);
+            $message = $pendingSum > 0
+                ? "You already have pending settlement requests. Available amount to settle is {$remaining}."
+                : 'Settlement amount cannot exceed outstanding debt of ' . number_format($outstandingDebt, 2);
             return response()->json([
                 'success' => false,
-                'message' => 'Settlement amount cannot exceed outstanding debt of ' . number_format($outstandingDebt, 2),
+                'message' => $message,
             ], 422);
         }
 

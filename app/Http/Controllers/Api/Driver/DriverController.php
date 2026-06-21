@@ -197,17 +197,82 @@ class DriverController extends Controller
 
     public function uploadDocument(Request $request): JsonResponse
     {
+        $driver = $this->driverRepo->findByUserId($request->user()->id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'type' => 'required|string|in:license_front,license_back,identity_front,identity_back,criminal_record',
+            'file' => 'required|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+        ]);
+
+        $columnMap = [
+            'license_front' => 'license_front_image',
+            'license_back' => 'license_back_image',
+            'identity_front' => 'identity_front_image',
+            'identity_back' => 'identity_back_image',
+            'criminal_record' => 'criminal_record',
+        ];
+
+        $column = $columnMap[$validated['type']];
+        $file = $validated['file'];
+        $filename = $driver->id . '_' . $validated['type'] . '_' . time() . '.' . $file->extension();
+        $path = $file->storeAs('driver-documents', $filename, 'public');
+
+        if (!$path) {
+            return response()->json(['success' => false, 'message' => 'Failed to store file'], 500);
+        }
+
+        $driver->update([$column => $path]);
+
         return response()->json([
             'success' => true,
             'message' => 'Document uploaded',
+            'data' => new DriverResource($driver->fresh()->load('user', 'vehicles.vehicleType')),
         ]);
     }
 
     public function submitVerification(Request $request): JsonResponse
     {
+        $driver = $this->driverRepo->findByUserId($request->user()->id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $requiredDocs = [
+            'license_front_image',
+            'license_back_image',
+            'identity_front_image',
+            'identity_back_image',
+            'criminal_record',
+        ];
+
+        $missing = [];
+        foreach ($requiredDocs as $doc) {
+            if (empty($driver->$doc)) {
+                $missing[] = $doc;
+            }
+        }
+
+        if (!empty($missing)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please upload all required documents before submitting verification.',
+            ], 422);
+        }
+
+        $driver->update([
+            'verification_document' => [
+                'status' => 'pending_review',
+                'submitted_at' => now()->toISOString(),
+            ],
+        ]);
+
         return response()->json([
             'success' => true,
-            'message' => 'Verification submitted',
+            'message' => 'Verification submitted. Awaiting admin review.',
+            'data' => new DriverResource($driver->fresh()->load('user', 'vehicles.vehicleType')),
         ]);
     }
 

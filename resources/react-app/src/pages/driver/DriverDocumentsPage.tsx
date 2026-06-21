@@ -10,6 +10,7 @@ import { FileUpload } from '@/components/common/FileUpload'
 import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingScreen } from '@/components/common/LoadingScreen'
 import { ErrorState } from '@/components/common/ErrorState'
+import { toast } from 'sonner'
 
 type DocKey = 'license_front' | 'license_back' | 'identity_front' | 'identity_back' | 'criminal_record'
 
@@ -32,9 +33,35 @@ export default function DriverDocumentsPage() {
   const { data: driver, isLoading, error, refetch } = useDriverProfile()
   const uploadDocument = useUploadDriverDocument()
   const submitVerification = useSubmitDriverVerification()
+  const [submitError, setSubmitError] = useState('')
 
   const handleUpload = (key: DocKey, file: File) => {
-    uploadDocument.mutate({ type: key, file })
+    uploadDocument.mutate(
+      { type: key, file },
+      {
+        onError: (err: any) => {
+          const msg = err?.response?.data?.message || 'Failed to upload document'
+          toast.error(msg)
+        },
+      }
+    )
+  }
+
+  const verificationStatus = driver?.isVerified
+    ? 'verified'
+    : driver?.verificationDocument?.status === 'pending_review'
+      ? 'pending_review'
+      : 'not_submitted'
+
+  const statusBadge = () => {
+    switch (verificationStatus) {
+      case 'verified':
+        return <Badge variant="success">Verified</Badge>
+      case 'pending_review':
+        return <Badge variant="warning">Under Review</Badge>
+      default:
+        return <Badge variant="secondary">Not Submitted</Badge>
+    }
   }
 
   if (isLoading) return <LoadingScreen />
@@ -54,9 +81,7 @@ export default function DriverDocumentsPage() {
               <CardTitle>Required Documents</CardTitle>
               <CardDescription>All documents must be clear and legible</CardDescription>
             </div>
-            <Badge variant={driver?.isVerified ? 'success' : 'warning'}>
-              {driver?.isVerified ? 'Verified' : 'Pending'}
-            </Badge>
+            {statusBadge()}
           </div>
         </CardHeader>
         <CardContent className="space-y-8">
@@ -97,12 +122,26 @@ export default function DriverDocumentsPage() {
       <div className="flex gap-4">
         <Button
           className="gap-2"
-          onClick={() => submitVerification.mutate()}
-          disabled={submitVerification.isPending}
+          onClick={() => {
+            setSubmitError('')
+            submitVerification.mutate(undefined, {
+              onError: (err: any) => {
+                const msg = err?.response?.data?.message || 'Failed to submit verification'
+                setSubmitError(msg)
+              },
+              onSuccess: () => {
+                setSubmitError('')
+              },
+            })
+          }}
+          disabled={submitVerification.isPending || verificationStatus === 'verified' || verificationStatus === 'pending_review'}
         >
           <Upload className="h-4 w-4" />
           {submitVerification.isPending ? 'Submitting...' : 'Submit for Verification'}
         </Button>
+        {submitError && (
+          <p className="text-sm text-destructive self-center">{submitError}</p>
+        )}
       </div>
     </div>
   )

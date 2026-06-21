@@ -269,7 +269,7 @@ export default function DriverCurrentRidePage() {
                 <Button variant="outline" className="flex-1" onClick={handleDismissCompleted}>
                   Done
                 </Button>
-                <Button className="flex-1" onClick={() => navigate('/driver/dashboard')}>
+                <Button className="flex-1" onClick={() => navigate('/driver')}>
                   Go to Dashboard
                 </Button>
               </div>
@@ -325,7 +325,7 @@ export default function DriverCurrentRidePage() {
             <p className="text-sm text-muted-foreground text-center mb-6">
               You don't have an active ride right now. Wait for ride requests or go back to dashboard.
             </p>
-            <Button onClick={() => navigate('/driver/dashboard')}>
+            <Button onClick={() => navigate('/driver')}>
               Back to Dashboard
             </Button>
           </CardContent>
@@ -733,7 +733,7 @@ export default function DriverCurrentRidePage() {
                 Rate Rider
               </Button>
             )}
-            <Button className="w-full" variant="default" onClick={() => navigate('/driver/dashboard')}>
+            <Button className="w-full" variant="default" onClick={() => navigate('/driver')}>
               Go to Dashboard
             </Button>
           </div>
