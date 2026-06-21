@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MapPin, Crosshair, Search, Loader2 } from 'lucide-react'
+import { MapPin, Crosshair, Search, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { OSM_RASTER_STYLE, OSM_TILE_MAX_ZOOM } from '@/maps/types'
 import { MapService } from '@/maps/MapService'
@@ -16,9 +16,24 @@ interface MapPickerProps {
   defaultZoom?: number
   className?: string
   height?: string | number
+  initialAddress?: string
+  initialLat?: number
+  initialLng?: number
+  hideAddressDisplay?: boolean
 }
 
 const defaultCenter = { lat: 40.7128, lng: -74.006 }
+
+function createMarkerElement(): HTMLDivElement {
+  const el = document.createElement('div')
+  el.style.width = '24px'
+  el.style.height = '24px'
+  el.style.borderRadius = '50%'
+  el.style.backgroundColor = '#3b82f6'
+  el.style.border = '3px solid white'
+  el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)'
+  return el
+}
 
 export function MapPicker({
   onLocationSelect,
@@ -26,10 +41,15 @@ export function MapPicker({
   defaultZoom = 14,
   className,
   height = 400,
+  initialAddress,
+  initialLat,
+  initialLng,
+  hideAddressDisplay = false,
 }: MapPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const [state, setState] = useState<{ loaded: boolean; error: string | null }>({ loaded: false, error: null })
   const [selectedPos, setSelectedPos] = useState<{ lat: number; lng: number } | null>(null)
   const [address, setAddress] = useState('')
@@ -56,6 +76,21 @@ export function MapPicker({
 
       map.on('load', () => {
         mapRef.current = map
+
+        // Fix blank map when inside a Dialog: detect container visibility changes
+        const doResize = () => { try { map.resize() } catch {} }
+
+        // Double rAF after dialog animation completes
+        requestAnimationFrame(() => requestAnimationFrame(doResize))
+        setTimeout(doResize, 300)
+
+        // ResizeObserver: auto-resize when container becomes visible
+        if (containerRef.current) {
+          const observer = new ResizeObserver(() => doResize())
+          observer.observe(containerRef.current)
+          resizeObserverRef.current = observer
+        }
+
         setState({ loaded: true, error: null })
       })
 
@@ -71,6 +106,14 @@ export function MapPicker({
       })
 
       return () => {
+        if (resizeObserverRef.current) {
+          resizeObserverRef.current.disconnect()
+          resizeObserverRef.current = null
+        }
+        if (markerRef.current) {
+          markerRef.current.remove()
+          markerRef.current = null
+        }
         map.remove()
         mapRef.current = null
       }
@@ -80,29 +123,33 @@ export function MapPicker({
     }
   }, [])
 
+  const placeMarker = useCallback((lat: number, lng: number) => {
+    const map = mapRef.current
+    if (!map) return
+
+    if (markerRef.current) markerRef.current.remove()
+
+    markerRef.current = new maplibregl.Marker({ element: createMarkerElement() })
+      .setLngLat([lng, lat])
+      .addTo(map)
+  }, [])
+
   const handleLocationSelect = useCallback(async (lat: number, lng: number) => {
     setSelectedPos({ lat, lng })
     const addr = await MapService.reverseGeocode(lat, lng)
     setAddress(addr)
+    placeMarker(lat, lng)
     onLocationSelect({ lat, lng, address: addr })
+  }, [onLocationSelect, placeMarker])
 
-    const map = mapRef.current
-    if (map) {
-      if (markerRef.current) markerRef.current.remove()
-
-      const el = document.createElement('div')
-      el.style.width = '24px'
-      el.style.height = '24px'
-      el.style.borderRadius = '50%'
-      el.style.backgroundColor = '#3b82f6'
-      el.style.border = '3px solid white'
-      el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)'
-
-      markerRef.current = new maplibregl.Marker({ element: el })
-        .setLngLat([lng, lat])
-        .addTo(map)
-    }
-  }, [onLocationSelect])
+  // Place initial marker for edit mode
+  useEffect(() => {
+    if (!state.loaded || initialLat == null || initialLng == null) return
+    setSelectedPos({ lat: initialLat, lng: initialLng })
+    if (initialAddress) setAddress(initialAddress)
+    placeMarker(initialLat, initialLng)
+    mapRef.current?.flyTo({ center: [initialLng, initialLat], zoom: defaultZoom, duration: 0 })
+  }, [state.loaded, initialLat, initialLng, initialAddress, placeMarker])
 
   const handleUseCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) return
@@ -147,20 +194,25 @@ export function MapPicker({
     return (
       <div
         className={cn('flex flex-col items-center justify-center bg-muted rounded-lg border', className)}
-        style={{ height: typeof height === 'number' ? `${height}px` : height }}
+        style={{ height: typeof height === 'number' ? `${height}px` : height, minHeight: 250 }}
       >
-        <MapPin className="h-10 w-10 text-muted-foreground mb-2" />
-        <p className="text-sm text-muted-foreground">Map picker unavailable</p>
+        <AlertCircle className="h-10 w-10 text-destructive mb-2" />
+        <p className="text-sm text-destructive font-medium mb-1">Map unavailable</p>
+        <p className="text-xs text-muted-foreground text-center px-4">
+          Please use the search or current location button above to select a place.
+        </p>
       </div>
     )
   }
 
   if (!state.loaded) {
     return (
-      <Skeleton
-        className={cn('rounded-lg', className)}
-        style={{ height: typeof height === 'number' ? `${height}px` : height }}
-      />
+      <div className={cn('space-y-3', className)}>
+        <Skeleton
+          className="rounded-lg"
+          style={{ height: typeof height === 'number' ? `${height}px` : height, minHeight: 250 }}
+        />
+      </div>
     )
   }
 
@@ -203,10 +255,10 @@ export function MapPicker({
       <div
         ref={containerRef}
         className="rounded-lg overflow-hidden border"
-        style={{ height: typeof height === 'number' ? `${height}px` : height }}
+        style={{ height: typeof height === 'number' ? `${height}px` : height, minHeight: 250, width: '100%' }}
       />
 
-      {address && (
+      {address && !hideAddressDisplay && (
         <p className="text-sm text-muted-foreground">
           Selected: <span className="font-medium text-foreground">{address}</span>
         </p>

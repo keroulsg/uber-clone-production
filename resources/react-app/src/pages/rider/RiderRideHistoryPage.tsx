@@ -75,7 +75,7 @@ export default function RiderRideHistoryPage() {
     if (ride.destination?.address) params.set('destAddress', ride.destination.address)
     if (ride.destination?.lat != null) params.set('destLat', String(ride.destination.lat))
     if (ride.destination?.lng != null) params.set('destLng', String(ride.destination.lng))
-    navigate(`/rider/dashboard?${params.toString()}`)
+    navigate(`/rider?${params.toString()}`)
   }
 
   const handleRateDriver = (rideId: string) => {

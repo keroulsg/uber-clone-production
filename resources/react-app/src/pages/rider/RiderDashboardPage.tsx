@@ -9,8 +9,15 @@ import { useCreateRide, useEstimateFare } from '@/hooks/useRides'
 import { useVehicleTypes } from '@/hooks/useVehicles'
 import { useWallet } from '@/hooks/usePayments'
 import { useAuthStore } from '@/stores/authStore'
+import { useCreateSavedPlace } from '@/hooks/useSavedPlaces'
 import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -73,6 +80,12 @@ export default function RiderDashboardPage() {
   const [pickupSearchOpen, setPickupSearchOpen] = useState(false)
   const pickupSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isReversing, setIsReversing] = useState(false)
+  const createSavedPlace = useCreateSavedPlace()
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [saveType, setSaveType] = useState<'pickup' | 'destination'>('pickup')
+  const [saveLabel, setSaveLabel] = useState('custom')
+  const [saveName, setSaveName] = useState('')
+  const [saveError, setSaveError] = useState('')
 
   const isFemale = user?.gender === 'female'
 
@@ -92,7 +105,7 @@ export default function RiderDashboardPage() {
     if (dLng) setDestLng(Number(dLng))
     // Clear params after reading to prevent re-fill on re-render
     if (pAddr || dAddr) {
-      window.history.replaceState({}, '', '/rider/dashboard')
+      window.history.replaceState({}, '', '/rider')
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -278,6 +291,42 @@ export default function RiderDashboardPage() {
     )
   }
 
+  const handleOpenSaveDialog = (type: 'pickup' | 'destination') => {
+    setSaveType(type)
+    setSaveLabel('custom')
+    const addr = type === 'pickup' ? pickupAddress : destAddress
+    setSaveName(addr.split(',')[0]?.slice(0, 50) || (type === 'pickup' ? 'Pickup' : 'Destination'))
+    setSaveError('')
+    setSaveDialogOpen(true)
+  }
+
+  const handleSavePlace = async () => {
+    if (!saveName.trim()) {
+      setSaveError('Name is required')
+      return
+    }
+    const lat = saveType === 'pickup' ? pickupLat : destLat
+    const lng = saveType === 'pickup' ? pickupLng : destLng
+    const addr = saveType === 'pickup' ? pickupAddress : destAddress
+    if (lat == null || lng == null) {
+      setSaveError('Please select a location first')
+      return
+    }
+    try {
+      await createSavedPlace.mutateAsync({
+        label: saveLabel,
+        name: saveName.trim(),
+        address: addr,
+        latitude: lat,
+        longitude: lng,
+      })
+      toast.success(`Saved as favorite`)
+      setSaveDialogOpen(false)
+    } catch {
+      setSaveError('Failed to save place')
+    }
+  }
+
   const selectedType = vehicleTypes.find((vt) => vt.id === selectedVehicleType)
   const fareEstimate = estimateFare.data?.data as { fare: number; breakdown: FareBreakdown } | undefined
   const surgeMultiplier = fareEstimate?.breakdown?.surge_multiplier ?? 1.0
@@ -365,6 +414,18 @@ export default function RiderDashboardPage() {
               >
                 <Crosshair className={`h-4 w-4 ${isLocating ? 'animate-spin' : ''}`} />
               </Button>
+              {pickupLat != null && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 gap-1 text-xs"
+                  onClick={() => handleOpenSaveDialog('pickup')}
+                  disabled={createSavedPlace.isPending}
+                >
+                  <Heart className="h-3 w-3" />
+                  Save
+                </Button>
+              )}
             </div>
           </div>
           <div className="space-y-2">
@@ -402,6 +463,20 @@ export default function RiderDashboardPage() {
                 </div>
               )}
             </div>
+            {destLat != null && (
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 text-xs"
+                  onClick={() => handleOpenSaveDialog('destination')}
+                  disabled={createSavedPlace.isPending}
+                >
+                  <Heart className="h-3 w-3" />
+                  Save destination
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -651,7 +726,7 @@ export default function RiderDashboardPage() {
         disabled={!canRequest || createRide.isPending || routeLoading}
         onClick={handleRequestRide}
       >
-        {createRide.isPending ? (
+          {createRide.isPending ? (
           'Requesting...'
         ) : routeLoading ? (
           <>
@@ -665,6 +740,43 @@ export default function RiderDashboardPage() {
           </>
         )}
       </Button>
+
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save {saveType === 'pickup' ? 'Pickup' : 'Destination'}</DialogTitle>
+            <DialogDescription>
+              Save this location as a favorite for quick booking later
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Label</Label>
+              <Select value={saveLabel} onValueChange={setSaveLabel}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="home">Home</SelectItem>
+                  <SelectItem value="work">Work</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Name <span className="text-destructive">*</span></Label>
+              <Input value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder="e.g. My Office" />
+            </div>
+            {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSavePlace} disabled={createSavedPlace.isPending}>
+              {createSavedPlace.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

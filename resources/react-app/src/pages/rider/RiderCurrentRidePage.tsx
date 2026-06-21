@@ -294,7 +294,7 @@ export default function RiderCurrentRidePage() {
       return (
         <div className="space-y-4 pb-32">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/rider/dashboard')}>
+            <Button variant="ghost" size="icon" onClick={() => navigate('/rider')}>
               <ChevronLeft className="h-5 w-5" />
             </Button>
             <div className="flex-1 min-w-0">
@@ -341,7 +341,7 @@ export default function RiderCurrentRidePage() {
                 <Button variant="outline" className="flex-1" onClick={handleDismissCompleted}>
                   Done
                 </Button>
-                <Button className="flex-1" onClick={() => navigate('/rider/dashboard')}>
+                <Button className="flex-1" onClick={() => navigate('/rider')}>
                   Book Again
                 </Button>
               </div>
@@ -411,7 +411,7 @@ export default function RiderCurrentRidePage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/rider/dashboard')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/rider')}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-xl font-bold">No Active Ride</h1>
@@ -421,7 +421,7 @@ export default function RiderCurrentRidePage() {
             <Car className="h-16 w-16 text-muted-foreground mb-4" />
             <h2 className="text-lg font-semibold mb-2">No Active Ride</h2>
             <p className="text-sm text-muted-foreground text-center mb-6">You don't have an active ride right now. Book a ride to get started.</p>
-            <Button onClick={() => navigate('/rider/dashboard')}>Book a Ride</Button>
+            <Button onClick={() => navigate('/rider')}>Book a Ride</Button>
           </CardContent>
         </Card>
       </div>
@@ -431,7 +431,7 @@ export default function RiderCurrentRidePage() {
   return (
     <div className="space-y-4 pb-32">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/rider/dashboard')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/rider')}>
           <ChevronLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
@@ -736,7 +736,7 @@ export default function RiderCurrentRidePage() {
               <Button variant="outline" className="flex-1" onClick={() => navigate('/rider/rides')}>
                 Ride History
               </Button>
-              <Button className="flex-1" onClick={() => navigate('/rider/dashboard')}>
+              <Button className="flex-1" onClick={() => navigate('/rider')}>
                 Book Again
               </Button>
             </div>
