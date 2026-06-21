@@ -105,6 +105,22 @@ export function useReactivateDriver() {
   })
 }
 
+export function useApproveDriverVerification() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => adminApi.approveDriverVerification(id),
+    onSuccess: (_, id) => { queryClient.invalidateQueries({ queryKey: ['admin', 'driver', id] }) },
+  })
+}
+
+export function useRejectDriverVerification() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) => adminApi.rejectDriverVerification(id, reason),
+    onSuccess: (_, vars) => { queryClient.invalidateQueries({ queryKey: ['admin', 'driver', vars.id] }) },
+  })
+}
+
 export function useAdminSettings() {
   const token = useAdminToken()
   return useQuery({
@@ -351,5 +367,73 @@ export function useSurgeData(lat?: number, lng?: number) {
     queryFn: () => adminApi.getSurgeData(lat, lng),
     refetchInterval: 30000,
     enabled: lat != null && lng != null,
+  })
+}
+
+// Staff hooks
+export function useAdminStaff(params?: Record<string, unknown>) {
+  const token = useAdminToken()
+  return useQuery({
+    queryKey: ['admin', 'staff', params],
+    queryFn: () => adminApi.getStaff(params),
+    enabled: !!token,
+  })
+}
+
+export function useCreateStaff() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => adminApi.createStaff(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'staff'] }) },
+  })
+}
+
+export function useStaffDetail(id: string) {
+  return useQuery({
+    queryKey: ['admin', 'staff', id],
+    queryFn: () => adminApi.getStaffDetail(id),
+    enabled: !!id,
+  })
+}
+
+export function useUpdateStaff() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => adminApi.updateStaff(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'staff'] }) },
+  })
+}
+
+export function useToggleStaffActive() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => adminApi.toggleStaffActive(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'staff'] }) },
+  })
+}
+
+export function useAdminRoles() {
+  const token = useAdminToken()
+  return useQuery({
+    queryKey: ['admin', 'roles'],
+    queryFn: () => adminApi.getRoles(),
+    enabled: !!token,
+  })
+}
+
+export function useUpdateRolePermissions() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, permissions }: { id: string; permissions: string[] }) => adminApi.updateRolePermissions(id, permissions),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] }) },
+  })
+}
+
+export function useAdminPermissions() {
+  const token = useAdminToken()
+  return useQuery({
+    queryKey: ['admin', 'permissions'],
+    queryFn: () => adminApi.getPermissions(),
+    enabled: !!token,
   })
 }

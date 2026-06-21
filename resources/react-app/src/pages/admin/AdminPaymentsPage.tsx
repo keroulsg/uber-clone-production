@@ -34,9 +34,11 @@ export default function AdminPaymentsPage() {
 
   const payments = data?.data?.data ?? []
   const meta = data?.data?.meta
+  const summary = data?.data?.summary ?? {}
 
-  const totalRevenue = payments.reduce((sum: number, p: Payment) => sum + p.amount, 0)
-  const totalFees = payments.reduce((sum: number, p: Payment) => sum + p.platformFee, 0)
+  const totalRevenue = summary.total_revenue ?? 0
+  const totalFees = summary.total_fees ?? 0
+  const totalDriverPayouts = summary.total_driver_payouts ?? 0
 
   const columns: Column<Payment>[] = [
     {
@@ -162,7 +164,7 @@ export default function AdminPaymentsPage() {
           <CardContent>
             <div className="flex items-center gap-2">
               <TrendingDown className="h-5 w-5 text-amber-500" />
-              <span className="text-2xl font-bold">{formatCurrency(totalRevenue - totalFees)}</span>
+              <span className="text-2xl font-bold">{formatCurrency(totalDriverPayouts)}</span>
             </div>
           </CardContent>
         </Card>

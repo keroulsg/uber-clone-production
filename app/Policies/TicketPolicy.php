@@ -9,7 +9,7 @@ class TicketPolicy
 {
     public function view(User $user, Ticket $ticket): bool
     {
-        return $user->id === $ticket->user_id || in_array('admin', $user->roles ?? []);
+        return $user->id === $ticket->user_id || in_array('admin', $user->getRoleNames()->toArray());
     }
 
     public function create(User $user): bool

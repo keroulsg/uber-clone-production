@@ -2,20 +2,22 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
-use App\Http\Controllers\Controller;
-use App\Http\Resources\DriverResource;
-use App\Http\Resources\RideResource;
-use App\Models\Driver;
-use App\Models\DriverWarning;
-use App\Models\DriverPenalty;
-use App\Models\BanHistory;
-use App\Models\Ride;
-use App\Models\Payment;
-use App\Enums\PaymentStatus;
-use App\Enums\RideStatus;
-use App\Models\DriverDebt;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+    use App\Http\Controllers\Controller;
+    use App\Http\Resources\DriverResource;
+    use App\Http\Resources\RideResource;
+    use App\Http\Resources\PaymentResource;
+    use App\Models\Driver;
+    use App\Models\DriverWarning;
+    use App\Models\DriverPenalty;
+    use App\Models\BanHistory;
+    use App\Models\Ride;
+    use App\Models\Payment;
+    use App\Enums\PaymentStatus;
+    use App\Enums\RideStatus;
+    use App\Models\DriverDebt;
+    use Illuminate\Http\JsonResponse;
+    use Illuminate\Http\Request;
+    use Illuminate\Support\Facades\Storage;
 
 class AdminDriverController extends Controller
 {
@@ -126,10 +128,22 @@ class AdminDriverController extends Controller
                 'debt_status' => DriverDebt::where('ride_id', $p->ride_id)->where('driver_id', $id)->value('paid_at') ? 'paid' : 'unpaid',
             ]);
 
+        $docFields = ['license_front_image', 'license_back_image', 'identity_front_image', 'identity_back_image', 'criminal_record'];
+        $documentUrls = [];
+        foreach ($docFields as $field) {
+            $value = $driver->$field;
+            if ($value) {
+                $documentUrls[$field] = Storage::disk('public')->url($value);
+            } else {
+                $documentUrls[$field] = null;
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
                 'driver' => new DriverResource($driver),
+                'documents' => $documentUrls,
                 'performance' => [
                     'total_rides' => $rides->count(),
                     'completed_rides' => $completedRides,
@@ -221,6 +235,57 @@ class AdminDriverController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Driver rejected',
+        ]);
+    }
+
+    public function verificationApprove(int $id, Request $request): JsonResponse
+    {
+        $driver = Driver::find($id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $driver->update([
+            'is_verified' => true,
+            'verification_document' => [
+                'status' => 'verified',
+                'submitted_at' => data_get($driver->verification_document, 'submitted_at', now()->toISOString()),
+                'reviewed_at' => now()->toISOString(),
+                'reviewed_by' => $request->user()->id,
+            ],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Driver documents verified',
+        ]);
+    }
+
+    public function verificationReject(int $id, Request $request): JsonResponse
+    {
+        $driver = Driver::find($id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'reason' => 'required|string|min:3|max:1000',
+        ]);
+
+        $driver->update([
+            'is_verified' => false,
+            'verification_document' => [
+                'status' => 'rejected',
+                'submitted_at' => data_get($driver->verification_document, 'submitted_at', now()->toISOString()),
+                'reviewed_at' => now()->toISOString(),
+                'reviewed_by' => $request->user()->id,
+                'rejection_reason' => $validated['reason'],
+            ],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Driver documents rejected',
         ]);
     }
 

@@ -22,6 +22,11 @@ class AuthService
 
     public function register(RegisterUserDTO $dto): array
     {
+        $allowedRoles = ['rider', 'driver'];
+        if (!in_array($dto->role, $allowedRoles, true)) {
+            abort(422, 'Registration is only allowed for rider or driver roles.');
+        }
+
         $user = $this->userRepo->create([
             'name' => $dto->name,
             'email' => $dto->email,
@@ -32,6 +37,7 @@ class AuthService
 
         $role = Role::findOrCreate($dto->role);
         $user->roles()->attach($role->id);
+        $user->syncRolesColumn();
 
         if ($dto->role === 'rider') {
             Rider::create(['user_id' => $user->id]);

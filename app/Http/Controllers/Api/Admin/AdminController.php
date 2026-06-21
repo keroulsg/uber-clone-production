@@ -242,9 +242,34 @@ class AdminController extends Controller
         ]);
     }
 
-    public function payments(): JsonResponse
+    public function payments(Request $request): JsonResponse
     {
-        $paginator = \App\Models\Payment::with('ride.rider', 'ride.driver.user')->latest()->paginate(20);
+        $query = \App\Models\Payment::with('ride.rider', 'ride.driver.user');
+
+        // Date filtering (respect filters for summary as well)
+        if ($request->filled('from')) {
+            $query->whereDate('paid_at', '>=', $request->input('from'));
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('paid_at', '<=', $request->input('to'));
+        }
+        if ($request->filled('payment_method')) {
+            $query->where('payment_method', $request->input('payment_method'));
+        }
+
+        $summaryQuery = clone $query;
+
+        $paginator = $query->latest()->paginate(20);
+
+        // Aggregate summaries
+        $completedPayments = (clone $summaryQuery)->where('status', \App\Enums\PaymentStatus::Completed);
+        $totalRevenue = (float) (clone $completedPayments)->sum('amount');
+        $totalFees = (float) (clone $completedPayments)->sum('company_commission');
+        $totalDriverPayouts = (float) (clone $completedPayments)->sum('driver_amount');
+        $totalCount = (int) $summaryQuery->count();
+        $cashTotal = (float) (clone $summaryQuery)->where('payment_method', 'cash')->sum('amount');
+        $walletTotal = (float) (clone $summaryQuery)->where('payment_method', 'wallet')->sum('amount');
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -254,6 +279,16 @@ class AdminController extends Controller
                     'last_page' => $paginator->lastPage(),
                     'per_page' => $paginator->perPage(),
                     'total' => $paginator->total(),
+                    'from' => $paginator->firstItem() ?? 0,
+                    'to' => $paginator->lastItem() ?? 0,
+                ],
+                'summary' => [
+                    'total_revenue' => $totalRevenue,
+                    'total_fees' => $totalFees,
+                    'total_driver_payouts' => $totalDriverPayouts,
+                    'total_count' => $totalCount,
+                    'cash_total' => $cashTotal,
+                    'wallet_total' => $walletTotal,
                 ],
             ],
         ]);

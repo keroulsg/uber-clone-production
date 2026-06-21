@@ -16,9 +16,9 @@ class AdminMiddleware
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        $roles = $user->roles ?? [];
+        $roles = $user->getRoleNames()->toArray();
 
-        if (!in_array('admin', $roles)) {
+        if (!in_array('admin', $roles) && !in_array('super-admin', $roles)) {
             return response()->json(['success' => false, 'message' => 'Forbidden: admin only'], 403);
         }
 

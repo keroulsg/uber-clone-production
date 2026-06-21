@@ -45,12 +45,19 @@ class User extends Authenticatable
         ];
     }
 
-    protected function getRolesAttribute($value): mixed
+    /**
+     * Accessor that always returns the Spatie roles() relationship Collection,
+     * bypassing the 'roles' database column that shadows the relationship name.
+     */
+    protected function getRolesAttribute($value): \Illuminate\Database\Eloquent\Collection
     {
-        if ($this->relationLoaded('roles')) {
-            return $this->getRelationValue('roles');
-        }
-        return json_decode($value, true) ?? [];
+        return $this->roles()->get();
+    }
+
+    public function syncRolesColumn(): void
+    {
+        $names = $this->roles()->pluck('name')->toArray();
+        self::withoutTimestamps(fn() => $this->newQuery()->whereKey($this->getKey())->update(['roles' => json_encode($names)]));
     }
 
     public function rider()

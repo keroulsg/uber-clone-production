@@ -16,7 +16,7 @@ class RoleOrProfile
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        $roles = $user->roles ?? [];
+        $roles = $user->getRoleNames()->toArray();
 
         if (in_array($role, $roles)) {
             return $next($request);

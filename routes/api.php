@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\Admin\AdminRiderController;
 use App\Http\Controllers\Api\Settlement\DriverSettlementController;
 use App\Http\Controllers\Api\Settlement\AdminSettlementController;
 use App\Http\Controllers\Api\Admin\AdminFeatureController;
+use App\Http\Controllers\Api\Admin\AdminStaffController;
 use App\Http\Controllers\Api\CancellationReasonController;
 use App\Http\Controllers\Api\SavedPlaceController;
 
@@ -209,6 +210,16 @@ Route::prefix('v1')->group(function () {
             Route::get('support-tickets', [AdminController::class, 'supportTickets']);
             Route::get('users/{id}/ban-history', [AdminController::class, 'banHistory']);
 
+            // Staff management
+            Route::get('staff', [AdminStaffController::class, 'index']);
+            Route::post('staff', [AdminStaffController::class, 'store']);
+            Route::get('staff/{id}', [AdminStaffController::class, 'show']);
+            Route::put('staff/{id}', [AdminStaffController::class, 'update']);
+            Route::post('staff/{id}/toggle-active', [AdminStaffController::class, 'toggleActive']);
+            Route::get('roles', [AdminStaffController::class, 'roles']);
+            Route::put('roles/{id}/permissions', [AdminStaffController::class, 'updateRolePermissions']);
+            Route::get('permissions', [AdminStaffController::class, 'permissions']);
+
             // Live drivers
             Route::get('live-drivers', [AdminController::class, 'liveDrivers']);
             Route::get('surge-data', [AdminController::class, 'surgeData']);
@@ -220,6 +231,8 @@ Route::prefix('v1')->group(function () {
             Route::put('drivers/{id}', [AdminDriverController::class, 'update']);
             Route::post('drivers/{id}/approve', [AdminDriverController::class, 'approve']);
             Route::post('drivers/{id}/reject', [AdminDriverController::class, 'reject']);
+            Route::post('drivers/{id}/verification/approve', [AdminDriverController::class, 'verificationApprove']);
+            Route::post('drivers/{id}/verification/reject', [AdminDriverController::class, 'verificationReject']);
             Route::post('drivers/{id}/suspend', [AdminDriverController::class, 'suspend']);
             Route::post('drivers/{id}/reactivate', [AdminDriverController::class, 'reactivate']);
             Route::post('drivers/{id}/block', [AdminDriverController::class, 'block']);

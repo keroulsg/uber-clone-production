@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/common/PageHeader'
 import { formatCurrency } from '@/lib/utils'
+import { toast } from 'sonner'
 import { useVehicleTypes } from '@/hooks/useVehicles'
 import { useEstimateFare } from '@/hooks/useRides'
 import { Calculator, Fuel, TrendingUp, DollarSign, UserCheck } from 'lucide-react'
@@ -70,7 +71,7 @@ export default function AdminPricingCalculatorPage() {
             driver_amount: parseFloat(b.driver_amount ?? 0),
           })
         },
-        onError: () => setResult(null),
+        onError: (err: any) => { setResult(null); toast.error(err?.response?.data?.message || err?.message || 'Failed to calculate fare') },
       },
     )
   }

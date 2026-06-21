@@ -184,3 +184,52 @@ export const getLiveDrivers = (): Promise<ApiResponse<LiveDriver[]>> =>
 
 export const getSurgeData = (lat?: number, lng?: number): Promise<ApiResponse<any>> =>
   apiClient.get('/admin/surge-data', { params: { lat, lng } }).then((r) => r.data)
+
+export const approveDriverVerification = (id: string): Promise<ApiResponse<unknown>> =>
+  apiClient.post(`/admin/drivers/${id}/verification/approve`).then((r) => r.data)
+
+export const rejectDriverVerification = (id: string, reason?: string): Promise<ApiResponse<unknown>> =>
+  apiClient.post(`/admin/drivers/${id}/verification/reject`, { reason }).then((r) => r.data)
+
+// Staff management
+export interface StaffMember {
+  id: string
+  name: string
+  email: string
+  phone: string
+  isActive: boolean
+  roles: string[]
+  createdAt: string
+}
+
+export const getStaff = (params?: Record<string, unknown>): Promise<ApiResponse<PaginatedResponse<StaffMember>>> =>
+  apiClient.get('/admin/staff', { params }).then((r) => r.data)
+
+export const createStaff = (data: Record<string, unknown>): Promise<ApiResponse<StaffMember>> =>
+  apiClient.post('/admin/staff', data).then((r) => r.data)
+
+export const getStaffDetail = (id: string): Promise<ApiResponse<StaffMember>> =>
+  apiClient.get(`/admin/staff/${id}`).then((r) => r.data)
+
+export const updateStaff = (id: string, data: Record<string, unknown>): Promise<ApiResponse<StaffMember>> =>
+  apiClient.put(`/admin/staff/${id}`, data).then((r) => r.data)
+
+export const toggleStaffActive = (id: string): Promise<ApiResponse<StaffMember>> =>
+  apiClient.post(`/admin/staff/${id}/toggle-active`).then((r) => r.data)
+
+// Roles & Permissions
+export interface Role {
+  id: string
+  name: string
+  guard_name?: string
+  permissions: string[]
+}
+
+export const getRoles = (): Promise<ApiResponse<Role[]>> =>
+  apiClient.get('/admin/roles').then((r) => r.data)
+
+export const updateRolePermissions = (id: string, permissions: string[]): Promise<ApiResponse<Role>> =>
+  apiClient.put(`/admin/roles/${id}/permissions`, { permissions }).then((r) => r.data)
+
+export const getPermissions = (): Promise<ApiResponse<string[]>> =>
+  apiClient.get('/admin/permissions').then((r) => r.data)
