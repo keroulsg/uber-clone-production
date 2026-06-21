@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/common/PageHeader'
+import { stopAllSoundLoops } from '@/lib/notificationSound'
+import { useNewRequestSound } from '@/hooks/useNewRequestSound'
 import { LoadingScreen } from '@/components/common/LoadingScreen'
 import { EmptyState } from '@/components/common/EmptyState'
 
@@ -56,6 +58,8 @@ export default function DriverRideRequestsPage() {
     }
   }, [refetch])
 
+  useNewRequestSound(data?.data ?? [])
+
   const pendingRides = (data?.data ?? []).filter(
     (ride: any) => !expiredIds.has(ride.id) && ride.id !== rejectedId
   )
@@ -65,11 +69,13 @@ export default function DriverRideRequestsPage() {
   }, [])
 
   const handleAccept = async (rideId: string) => {
+    stopAllSoundLoops()
     setAcceptedId(rideId)
     acceptRide.mutate(rideId)
   }
 
   const handleReject = (rideId: string) => {
+    stopAllSoundLoops()
     setRejectedId(rideId)
     rejectRide.mutate(rideId)
   }

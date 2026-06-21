@@ -61,7 +61,15 @@ class RatingService
                         ],
                     ]);
 
-                    event(new RatingReceived($ratingModel, $driver->user_id));
+                    try {
+                        event(new RatingReceived($ratingModel, $driver->user_id));
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('Broadcast failed — rating service continued', [
+                            'ride_id' => $rideId,
+                            'event' => 'RatingReceived',
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }
             }
 
@@ -115,7 +123,15 @@ class RatingService
                         ],
                     ]);
 
-                    event(new RatingReceived($ratingModel, $ride->rider_id));
+                    try {
+                        event(new RatingReceived($ratingModel, $ride->rider_id));
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('Broadcast failed — rating service continued', [
+                            'ride_id' => $rideId,
+                            'event' => 'RatingReceived',
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }
             }
 

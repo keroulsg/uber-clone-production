@@ -25,7 +25,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -234,6 +234,10 @@ export default function RiderCurrentRidePage() {
           queryClient.invalidateQueries({ queryKey: ['rides', 'recent-completed-pending-rating'] })
           useRideStore.getState().clearCurrentRide()
         },
+        onError: (err: any) => {
+          const msg = err?.response?.data?.message || 'Rating failed'
+          setRatingError(msg)
+        },
       }
     )
   }
@@ -371,13 +375,13 @@ export default function RiderCurrentRidePage() {
           </Card>
 
           <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>
-            <DialogContent aria-describedby="rate-driver-desc">
+            <DialogContent>
               <DialogHeader>
                 <DialogTitle className="text-center">Rate {cr?.driver?.user?.name ?? 'Driver'}</DialogTitle>
+                <DialogDescription className="text-center">
+                  How was your ride experience?
+                </DialogDescription>
               </DialogHeader>
-              <p id="rate-driver-desc" className="text-sm text-muted-foreground text-center">
-                How was your ride experience?
-              </p>
               <div className="space-y-4">
                 <div className="flex justify-center">
                   <RatingStars
@@ -852,13 +856,13 @@ export default function RiderCurrentRidePage() {
       </AlertDialog>
 
       <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>
-        <DialogContent aria-describedby="rate-driver-desc-active">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-center">Rate {currentRide?.driver?.user?.name ?? 'Driver'}</DialogTitle>
+            <DialogDescription className="text-center">
+              How was your ride experience?
+            </DialogDescription>
           </DialogHeader>
-          <p id="rate-driver-desc-active" className="text-sm text-muted-foreground text-center">
-            How was your ride experience?
-          </p>
           <div className="space-y-4">
             <div className="flex justify-center">
               <RatingStars

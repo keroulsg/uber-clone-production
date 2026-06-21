@@ -20,5 +20,11 @@ export default defineConfig({
         watch: {
             ignored: ['**/storage/framework/views/**'],
         },
+        proxy: {
+            '/sounds/': {
+                target: 'http://localhost:8000',
+                changeOrigin: true,
+            },
+        },
     },
 });

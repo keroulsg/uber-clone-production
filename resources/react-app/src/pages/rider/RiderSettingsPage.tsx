@@ -4,10 +4,9 @@ import { toast } from 'sonner'
 import {
   Bell, MessageSquare, Mail, Megaphone,
   Car, Moon, Sun, Globe, Info,
-  AlertTriangle, Trash, Save, Volume2,
+  AlertTriangle, Trash, Save,
 } from 'lucide-react'
 import { useUserSettings, useUpdateUserSettings } from '@/hooks/useUserSettings'
-import { playNotificationSound, unlockNotificationSound } from '@/lib/notificationSound'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -197,48 +196,6 @@ export default function RiderSettingsPage() {
             />
           </div>
 
-          <Separator />
-          <p className="text-sm font-medium text-muted-foreground pt-2">Sound</p>
-          <div className="flex items-center justify-between">
-            <div className="flex items-start gap-3">
-              <Volume2 className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <Label htmlFor="sound" className="font-medium">Notification Sound</Label>
-                <p className="text-sm text-muted-foreground">Play a sound when important notifications arrive</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  unlockNotificationSound()
-                  playNotificationSound(notificationVolume)
-                }}
-              >
-                Test
-              </Button>
-              <Switch
-                id="sound"
-                checked={notifications.soundEnabled}
-                onCheckedChange={(v) => setNotifications((n) => ({ ...n, soundEnabled: v }))}
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-3 mt-3">
-            <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={notificationVolume}
-              onChange={(e) => setNotificationVolume(parseInt(e.target.value))}
-              disabled={!notifications.soundEnabled}
-              className="flex-1 accent-primary"
-            />
-            <span className="text-sm text-muted-foreground w-10 text-right">{notificationVolume}%</span>
-          </div>
         </CardContent>
       </Card>
 

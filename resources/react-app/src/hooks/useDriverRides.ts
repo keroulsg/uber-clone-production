@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 import * as driverRidesApi from '../api/driver-rides'
 import type { RideSummary } from '../api/driver-rides'
 import type { Ride } from '../types'
+import { stopAllSoundLoops } from '../lib/notificationSound'
 
 export function usePendingRides() {
   const token = useAuthStore((s) => s.token)
@@ -22,6 +23,7 @@ export function useAcceptRide() {
   return useMutation({
     mutationFn: (rideId: string) => driverRidesApi.acceptRide(rideId),
     onSuccess: (res) => {
+      stopAllSoundLoops()
       setCurrentRide(res.data as Ride)
       queryClient.invalidateQueries({ queryKey: ['driver-rides'] })
     },
@@ -33,6 +35,7 @@ export function useRejectRide() {
   return useMutation({
     mutationFn: (rideId: string) => driverRidesApi.rejectRide(rideId),
     onSuccess: () => {
+      stopAllSoundLoops()
       queryClient.invalidateQueries({ queryKey: ['driver-rides', 'pending'] })
     },
   })

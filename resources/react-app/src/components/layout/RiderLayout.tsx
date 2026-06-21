@@ -18,7 +18,6 @@ import { useLogout } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { NotificationBell } from '@/components/common/NotificationBell'
 import { useUnreadCount, useMarkAllAsRead, useMarkAsRead, useNotifications } from '@/hooks/useNotifications'
-import { useUserSettings } from '@/hooks/useUserSettings'
 import { queryClient } from '@/lib/queryClient'
 
 const navItems = [
@@ -41,10 +40,6 @@ export function RiderLayout() {
   const navigate = useNavigate()
   const logout = useLogout()
   const { user, isAuthenticated } = useAuthStore()
-  const { data: settingsData } = useUserSettings()
-  const settings = settingsData?.data as any
-  const soundEnabled = settings?.notifications?.soundEnabled ?? true
-  const notificationVolume = settings?.notifications?.notificationVolume ?? 100
   const { data: notifData, isLoading: notifLoading, isError: notifError } = useNotifications(undefined, { enabled: isAuthenticated, refetchInterval: 5000 })
   const { data: unreadCount } = useUnreadCount({ enabled: isAuthenticated })
   const markAllAsRead = useMarkAllAsRead()
@@ -126,8 +121,6 @@ export function RiderLayout() {
             <NotificationBell
               notifications={notifications}
               unreadCount={unreadCount ?? 0}
-              soundEnabled={soundEnabled}
-              volume={notificationVolume}
               onMarkAllRead={() => markAllAsRead.mutate()}
               onMarkAsRead={(id) => markAsRead.mutate(id)}
               viewAllHref="/rider/notifications"

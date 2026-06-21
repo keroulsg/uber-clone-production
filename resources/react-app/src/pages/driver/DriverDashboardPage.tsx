@@ -26,6 +26,8 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { EmptyState } from '@/components/common/EmptyState'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { useDriverBroadcast } from '@/hooks/useDriverBroadcast'
+import { stopAllSoundLoops } from '@/lib/notificationSound'
+import { useNewRequestSound } from '@/hooks/useNewRequestSound'
 import type { IncomingRideRequest } from '@/hooks/useDriverBroadcast'
 import { getRideHistory } from '@/api/drivers'
 import type { RideBrief } from '@/types'
@@ -54,6 +56,8 @@ export default function DriverDashboardPage() {
       if (pollingRef.current) clearInterval(pollingRef.current)
     }
   }, [refetchPending])
+
+  useNewRequestSound(pendingRidesData?.data ?? [])
 
   const stats = performanceData?.data as {
     acceptanceRate: number
@@ -269,12 +273,12 @@ export default function DriverDashboardPage() {
                     </div>
                     <div className="flex gap-2">
                       <Button variant="default" size="sm" className="flex-1"
-                        onClick={() => acceptRide.mutate(ride.id)}
+                        onClick={() => { stopAllSoundLoops(); acceptRide.mutate(ride.id) }}
                         disabled={acceptRide.isPending}>
                         Accept
                       </Button>
                       <Button variant="outline" size="sm" className="flex-1"
-                        onClick={() => rejectRide.mutate(ride.id)}
+                        onClick={() => { stopAllSoundLoops(); rejectRide.mutate(ride.id) }}
                         disabled={rejectRide.isPending}>
                         <X className="h-4 w-4 mr-1" />Reject
                       </Button>
