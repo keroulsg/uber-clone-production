@@ -6,9 +6,13 @@ use App\Models\Wallet;
 
 class WalletRepository
 {
-    public function findByUser(int $userId): ?Wallet
+    public function findByUser(int $userId, bool $lock = false): ?Wallet
     {
-        return Wallet::where('user_id', $userId)->first();
+        $query = Wallet::where('user_id', $userId);
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+        return $query->first();
     }
 
     public function createForUser(int $userId, string $currency = 'USD'): Wallet
@@ -36,19 +40,23 @@ class WalletRepository
 
     public function deductBalance(int $userId, float $amount): bool
     {
-        $wallet = $this->findByUser($userId);
+        $wallet = $this->findByUser($userId, true);
         if (!$wallet || $wallet->balance < $amount) {
             return false;
         }
-        return $this->updateBalance($userId, $wallet->balance - $amount);
+        $wallet->balance -= $amount;
+        $wallet->last_transaction_at = now();
+        return $wallet->save();
     }
 
     public function addBalance(int $userId, float $amount): bool
     {
-        $wallet = $this->findByUser($userId);
+        $wallet = $this->findByUser($userId, true);
         if (!$wallet) {
             return false;
         }
-        return $this->updateBalance($userId, $wallet->balance + $amount);
+        $wallet->balance += $amount;
+        $wallet->last_transaction_at = now();
+        return $wallet->save();
     }
 }

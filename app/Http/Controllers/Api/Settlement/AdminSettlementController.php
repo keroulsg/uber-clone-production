@@ -52,45 +52,48 @@ class AdminSettlementController extends Controller
 
     public function approve(Request $request, int $id): JsonResponse
     {
-        $settlement = DriverSettlement::find($id);
-        if (!$settlement) {
-            return response()->json(['success' => false, 'message' => 'Settlement not found'], 404);
-        }
-
-        if ($settlement->status !== 'pending') {
-            return response()->json(['success' => false, 'message' => 'Only pending settlements can be approved'], 422);
-        }
-
-        $unpaidDebts = DriverDebt::where('driver_id', $settlement->driver_id)
-            ->whereNull('paid_at')
-            ->orderBy('created_at')
-            ->get();
-
-        $remaining = (float) $settlement->amount;
-
-        foreach ($unpaidDebts as $debt) {
-            if ($remaining <= 0) break;
-
-            $debtAmount = (float) $debt->amount;
-            if ($debtAmount <= $remaining) {
-                $debt->update(['paid_at' => now()]);
-                $remaining -= $debtAmount;
-            } else {
-                // Partial payment not supported in MVP — settle full debts in order
-                break;
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $id) {
+            $settlement = DriverSettlement::where('id', $id)->lockForUpdate()->first();
+            if (!$settlement) {
+                return response()->json(['success' => false, 'message' => 'Settlement not found'], 404);
             }
-        }
 
-        $settlement->update([
-            'status' => 'approved',
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-        ]);
+            if ($settlement->status !== 'pending') {
+                return response()->json(['success' => false, 'message' => 'Only pending settlements can be approved'], 422);
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Settlement approved. Applicable debts marked as paid.',
-        ]);
+            $unpaidDebts = DriverDebt::where('driver_id', $settlement->driver_id)
+                ->whereNull('paid_at')
+                ->orderBy('created_at')
+                ->lockForUpdate()
+                ->get();
+
+            $remaining = (float) $settlement->amount;
+
+            foreach ($unpaidDebts as $debt) {
+                if ($remaining <= 0) break;
+
+                $debtAmount = (float) $debt->amount;
+                if ($debtAmount <= $remaining) {
+                    $debt->update(['paid_at' => now()]);
+                    $remaining -= $debtAmount;
+                } else {
+                    // Partial payment not supported in MVP — settle full debts in order
+                    break;
+                }
+            }
+
+            $settlement->update([
+                'status' => 'approved',
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Settlement approved. Applicable debts marked as paid.',
+            ]);
+        });
     }
 
     public function reject(Request $request, int $id): JsonResponse
@@ -99,26 +102,28 @@ class AdminSettlementController extends Controller
             'rejection_reason' => 'required|string|max:1000',
         ]);
 
-        $settlement = DriverSettlement::find($id);
-        if (!$settlement) {
-            return response()->json(['success' => false, 'message' => 'Settlement not found'], 404);
-        }
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $id) {
+            $settlement = DriverSettlement::where('id', $id)->lockForUpdate()->first();
+            if (!$settlement) {
+                return response()->json(['success' => false, 'message' => 'Settlement not found'], 404);
+            }
 
-        if ($settlement->status !== 'pending') {
-            return response()->json(['success' => false, 'message' => 'Only pending settlements can be rejected'], 422);
-        }
+            if ($settlement->status !== 'pending') {
+                return response()->json(['success' => false, 'message' => 'Only pending settlements can be rejected'], 422);
+            }
 
-        $settlement->update([
-            'status' => 'rejected',
-            'rejection_reason' => $request->input('rejection_reason'),
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-        ]);
+            $settlement->update([
+                'status' => 'rejected',
+                'rejection_reason' => $request->input('rejection_reason'),
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Settlement rejected. Debt remains unpaid.',
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Settlement rejected. Debt remains unpaid.',
+            ]);
+        });
     }
 
     public function driverSettlements(int $driverId): JsonResponse

@@ -103,40 +103,47 @@ class PaymentController extends Controller
 
     public function addFunds(Request $request): JsonResponse
     {
-        $request->validate(['amount' => 'required|numeric|min:1']);
-
-        $wallet = $this->walletRepo->findByUser($request->user()->id);
-        if (!$wallet) {
-            return response()->json(['success' => false, 'message' => 'Wallet not found'], 404);
-        }
-
-        $amount = (float) $request->input('amount');
-        $balanceBefore = (float) $wallet->balance;
-        $this->walletRepo->addBalance($request->user()->id, $amount);
-        $wallet->refresh();
-        $balanceAfter = (float) $wallet->balance;
-
-        LedgerEntry::create([
-            'user_id' => $request->user()->id,
-            'type' => 'credit',
-            'amount' => $amount,
-            'balance_before' => $balanceBefore,
-            'balance_after' => $balanceAfter,
-            'description' => 'Wallet top-up',
+        $request->validate([
+            'amount' => 'required|numeric|gt:0',
         ]);
 
-        \App\Models\Notification::create([
-            'type' => 'wallet_topup',
-            'notifiable_type' => \App\Models\User::class,
-            'notifiable_id' => $request->user()->id,
-            'data' => ['amount' => $amount, 'message' => "Your wallet has been topped up with {$amount}."],
-        ]);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request) {
+            $wallet = $this->walletRepo->findByUser($request->user()->id, true);
+            if (!$wallet) {
+                return response()->json(['success' => false, 'message' => 'Wallet not found'], 404);
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Funds added',
-            'data' => new WalletResource($wallet),
-        ]);
+            $amount = (float) $request->input('amount');
+            $balanceBefore = (float) $wallet->balance;
+            
+            $wallet->balance += $amount;
+            $wallet->last_transaction_at = now();
+            $wallet->save();
+
+            $balanceAfter = (float) $wallet->balance;
+
+            LedgerEntry::create([
+                'user_id' => $request->user()->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'description' => 'Wallet top-up',
+            ]);
+
+            \App\Models\Notification::create([
+                'type' => 'wallet_topup',
+                'notifiable_type' => \App\Models\User::class,
+                'notifiable_id' => $request->user()->id,
+                'data' => ['amount' => $amount, 'message' => "Your wallet has been topped up with {$amount}."],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Funds added',
+                'data' => new WalletResource($wallet),
+            ]);
+        });
     }
 
     public function transactions(Request $request): JsonResponse

@@ -63,59 +63,66 @@ class DriverSettlementController extends Controller
             'attachment' => 'nullable|image|max:2048',
         ]);
 
-        $outstandingDebt = (float) DriverDebt::where('driver_id', $driver->id)
-            ->whereNull('paid_at')
-            ->sum('amount');
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $driver, $validated) {
+            // Lock the driver profile row
+            $lockedDriver = Driver::where('id', $driver->id)->lockForUpdate()->first();
 
-        $pendingSum = (float) DriverSettlement::where('driver_id', $driver->id)
-            ->where('status', 'pending')
-            ->sum('amount');
+            $outstandingDebt = (float) DriverDebt::where('driver_id', $lockedDriver->id)
+                ->whereNull('paid_at')
+                ->lockForUpdate()
+                ->sum('amount');
 
-        $availableToSettle = $outstandingDebt - $pendingSum;
+            $pendingSum = (float) DriverSettlement::where('driver_id', $lockedDriver->id)
+                ->where('status', 'pending')
+                ->lockForUpdate()
+                ->sum('amount');
 
-        if ((float) $validated['amount'] > $availableToSettle) {
-            $remaining = number_format(max(0, $availableToSettle), 2);
-            $message = $pendingSum > 0
-                ? "You already have pending settlement requests. Available amount to settle is {$remaining}."
-                : 'Settlement amount cannot exceed outstanding debt of ' . number_format($outstandingDebt, 2);
+            $availableToSettle = $outstandingDebt - $pendingSum;
+
+            if ((float) $validated['amount'] > $availableToSettle) {
+                $remaining = number_format(max(0, $availableToSettle), 2);
+                $message = $pendingSum > 0
+                    ? "You already have pending settlement requests. Available amount to settle is {$remaining}."
+                    : 'Settlement amount cannot exceed outstanding debt of ' . number_format($outstandingDebt, 2);
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                ], 422);
+            }
+
+            if (!in_array($validated['method'], ['cash']) && empty($validated['reference'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Reference number is required for this payment method',
+                ], 422);
+            }
+
+            $attachmentPath = null;
+            if ($request->hasFile('attachment')) {
+                $attachmentPath = $request->file('attachment')->store('settlements', 'public');
+            }
+
+            $settlement = DriverSettlement::create([
+                'driver_id' => $lockedDriver->id,
+                'amount' => $validated['amount'],
+                'method' => $validated['method'],
+                'reference' => $validated['reference'] ?? null,
+                'note' => $validated['note'] ?? null,
+                'attachment_path' => $attachmentPath,
+                'status' => 'pending',
+            ]);
+
             return response()->json([
-                'success' => false,
-                'message' => $message,
-            ], 422);
-        }
-
-        if (!in_array($validated['method'], ['cash']) && empty($validated['reference'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Reference number is required for this payment method',
-            ], 422);
-        }
-
-        $attachmentPath = null;
-        if ($request->hasFile('attachment')) {
-            $attachmentPath = $request->file('attachment')->store('settlements', 'public');
-        }
-
-        $settlement = DriverSettlement::create([
-            'driver_id' => $driver->id,
-            'amount' => $validated['amount'],
-            'method' => $validated['method'],
-            'reference' => $validated['reference'] ?? null,
-            'note' => $validated['note'] ?? null,
-            'attachment_path' => $attachmentPath,
-            'status' => 'pending',
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Settlement request submitted. Awaiting admin approval.',
-            'data' => [
-                'id' => $settlement->id,
-                'amount' => (float) $settlement->amount,
-                'method' => $settlement->method,
-                'status' => $settlement->status,
-                'created_at' => $settlement->created_at?->toISOString(),
-            ],
-        ], 201);
+                'success' => true,
+                'message' => 'Settlement request submitted. Awaiting admin approval.',
+                'data' => [
+                    'id' => $settlement->id,
+                    'amount' => (float) $settlement->amount,
+                    'method' => $settlement->method,
+                    'status' => $settlement->status,
+                    'created_at' => $settlement->created_at?->toISOString(),
+                ],
+            ], 201);
+        });
     }
 }

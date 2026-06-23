@@ -65,7 +65,7 @@ class PaymentService
             ]);
 
             if ($ride->payment_method === 'wallet') {
-                $riderWallet = $this->walletRepo->findByUser($ride->rider_id);
+                $riderWallet = $this->walletRepo->findByUser($ride->rider_id, true);
                 $riderBalanceBefore = $riderWallet ? (float) $riderWallet->balance : 0;
 
                 $deducted = $this->walletRepo->deductBalance($ride->rider_id, $totalFare);
@@ -74,17 +74,17 @@ class PaymentService
                     throw new \RuntimeException('Insufficient wallet balance');
                 }
 
-                $riderWalletAfter = $this->walletRepo->findByUser($ride->rider_id);
+                $riderWalletAfter = $this->walletRepo->findByUser($ride->rider_id, true);
                 $riderBalanceAfter = $riderWalletAfter ? (float) $riderWalletAfter->balance : 0;
 
-                $driverWallet = $this->walletRepo->findByUser($ride->driver?->user_id);
+                $driverWallet = $this->walletRepo->findByUser($ride->driver?->user_id, true);
                 if (!$driverWallet) {
                     $this->walletRepo->createForUser($ride->driver?->user_id);
-                    $driverWallet = $this->walletRepo->findByUser($ride->driver?->user_id);
+                    $driverWallet = $this->walletRepo->findByUser($ride->driver?->user_id, true);
                 }
                 $driverBalanceBefore = (float) $driverWallet->balance;
                 $this->walletRepo->addBalance($ride->driver?->user_id, $driverAmount);
-                $driverWalletAfter = $this->walletRepo->findByUser($ride->driver?->user_id);
+                $driverWalletAfter = $this->walletRepo->findByUser($ride->driver?->user_id, true);
                 $driverBalanceAfter = $driverWalletAfter ? (float) $driverWalletAfter->balance : 0;
 
                 LedgerEntry::create([
@@ -123,10 +123,10 @@ class PaymentService
                 ]);
 
                 if ($changeDue > 0 && $creditChange && $ride->rider_id) {
-                    $riderWallet = $this->walletRepo->findByUser($ride->rider_id);
+                    $riderWallet = $this->walletRepo->findByUser($ride->rider_id, true);
                     $riderBalanceBefore = $riderWallet ? (float) $riderWallet->balance : 0;
                     $this->walletRepo->addBalance($ride->rider_id, $changeDue);
-                    $riderWalletAfter = $this->walletRepo->findByUser($ride->rider_id);
+                    $riderWalletAfter = $this->walletRepo->findByUser($ride->rider_id, true);
                     $riderBalanceAfter = $riderWalletAfter ? (float) $riderWalletAfter->balance : 0;
 
                     LedgerEntry::create([

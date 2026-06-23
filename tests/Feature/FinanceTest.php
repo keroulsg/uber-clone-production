@@ -297,4 +297,313 @@ class FinanceTest extends TestCase
             'payout_phone' => '+201234567890',
         ]);
     }
+
+    public function test_wallet_topup_amount_must_be_positive(): void
+    {
+        $response = $this->actingAs($this->rider, 'sanctum')
+            ->postJson('/api/v1/payments/wallet/fund', ['amount' => -10.00]);
+        $response->assertStatus(422);
+
+        $responseZero = $this->actingAs($this->rider, 'sanctum')
+            ->postJson('/api/v1/payments/wallet/fund', ['amount' => 0]);
+        $responseZero->assertStatus(422);
+    }
+
+    public function test_wallet_topup_updates_wallet_once_and_creates_ledger(): void
+    {
+        $wallet = \App\Models\Wallet::where('user_id', $this->rider->id)->first();
+        $this->assertEquals(200.00, (float)$wallet->balance);
+
+        $response = $this->actingAs($this->rider, 'sanctum')
+            ->postJson('/api/v1/payments/wallet/fund', ['amount' => 50.00]);
+        $response->assertOk();
+
+        $wallet->refresh();
+        $this->assertEquals(250.00, (float)$wallet->balance);
+
+        $this->assertDatabaseHas('ledger_entries', [
+            'user_id' => $this->rider->id,
+            'type' => 'credit',
+            'amount' => 50.00,
+            'description' => 'Wallet top-up',
+        ]);
+    }
+
+    public function test_wallet_payment_fails_with_insufficient_balance(): void
+    {
+        $riderWallet = \App\Models\Wallet::where('user_id', $this->rider->id)->first();
+        $riderWallet->update(['balance' => 5.00]); // Low balance
+
+        $ride = $this->createRideThroughFlow(10, 15, 'wallet');
+
+        $response = $this->actingAs($this->driver, 'sanctum')
+            ->postJson("/api/v1/driver/rides/{$ride->id}/complete", [
+                'actual_distance' => 10,
+                'actual_duration' => 15,
+            ]);
+
+        $response->assertStatus(402);
+        $response->assertJsonFragment(['success' => false, 'message' => 'Insufficient wallet balance. Please choose cash or top up wallet.']);
+    }
+
+    public function test_wallet_payment_debits_rider_wallet_once_and_credits_driver_once(): void
+    {
+        $ride = $this->createRideThroughFlow(10, 15, 'wallet');
+
+        $response = $this->actingAs($this->driver, 'sanctum')
+            ->postJson("/api/v1/driver/rides/{$ride->id}/complete", [
+                'actual_distance' => 10,
+                'actual_duration' => 15,
+            ]);
+        $response->assertOk();
+
+        $riderWallet = \App\Models\Wallet::where('user_id', $this->rider->id)->first();
+        $driverWallet = \App\Models\Wallet::where('user_id', $this->driver->id)->first();
+
+        // Base 5.00, Distance 10*1.5=15.00, Duration 15*0.25=3.75, Fuel 17.00. Total = 40.75 EGP.
+        $this->assertEquals(159.25, (float)$riderWallet->balance);
+
+        // Driver gets 40.75 - 10% commission (4.08) = 36.67. Start balance 50.00. Total = 86.67.
+        $this->assertEquals(86.67, (float)$driverWallet->balance);
+
+        $this->assertEquals(1, \App\Models\Payment::where('ride_id', $ride->id)->count());
+    }
+
+    public function test_duplicate_ride_complete_does_not_duplicate_wallet_debit(): void
+    {
+        $ride = $this->createRideThroughFlow(10, 15, 'wallet');
+
+        $response1 = $this->actingAs($this->driver, 'sanctum')
+            ->postJson("/api/v1/driver/rides/{$ride->id}/complete", [
+                'actual_distance' => 10,
+                'actual_duration' => 15,
+            ]);
+        $response1->assertOk();
+
+        $response2 = $this->actingAs($this->driver, 'sanctum')
+            ->postJson("/api/v1/driver/rides/{$ride->id}/complete", [
+                'actual_distance' => 10,
+                'actual_duration' => 15,
+            ]);
+        $response2->assertStatus(200);
+        $response2->assertJsonFragment(['success' => true, 'message' => 'Ride already completed']);
+
+        $riderWallet = \App\Models\Wallet::where('user_id', $this->rider->id)->first();
+        $this->assertEquals(159.25, (float)$riderWallet->balance);
+    }
+
+    public function test_cash_ride_creates_one_payment_record_and_one_commission_debt(): void
+    {
+        $ride = $this->createRideThroughFlow(10, 15, 'cash');
+
+        $response = $this->actingAs($this->driver, 'sanctum')
+            ->postJson("/api/v1/driver/rides/{$ride->id}/complete", [
+                'actual_distance' => 10,
+                'actual_duration' => 15,
+            ]);
+        $response->assertOk();
+
+        $this->assertEquals(1, \App\Models\Payment::where('ride_id', $ride->id)->count());
+        $this->assertEquals(1, \App\Models\DriverDebt::where('ride_id', $ride->id)->where('type', 'commission')->count());
+
+        $debt = \App\Models\DriverDebt::where('ride_id', $ride->id)->where('type', 'commission')->first();
+        $this->assertEquals(4.08, (float)$debt->amount);
+    }
+
+    public function test_duplicate_cash_complete_does_not_duplicate_payment_or_debt(): void
+    {
+        $ride = $this->createRideThroughFlow(10, 15, 'cash');
+
+        $response1 = $this->actingAs($this->driver, 'sanctum')
+            ->postJson("/api/v1/driver/rides/{$ride->id}/complete", [
+                'actual_distance' => 10,
+                'actual_duration' => 15,
+            ]);
+        $response1->assertOk();
+
+        $response2 = $this->actingAs($this->driver, 'sanctum')
+            ->postJson("/api/v1/driver/rides/{$ride->id}/complete", [
+                'actual_distance' => 10,
+                'actual_duration' => 15,
+            ]);
+        $response2->assertStatus(200);
+        $response2->assertJsonFragment(['success' => true, 'message' => 'Ride already completed']);
+
+        $this->assertEquals(1, \App\Models\Payment::where('ride_id', $ride->id)->count());
+        $this->assertEquals(1, \App\Models\DriverDebt::where('ride_id', $ride->id)->where('type', 'commission')->count());
+    }
+
+    public function test_driver_cannot_create_settlement_above_outstanding_debt(): void
+    {
+        $response = $this->actingAs($this->driver, 'sanctum')
+            ->postJson('/api/v1/driver/settlements', [
+                'amount' => 50.00,
+                'method' => 'instapay',
+                'reference' => 'TXN12345',
+            ]);
+        $response->assertStatus(422);
+        $response->assertJsonFragment(['success' => false]);
+    }
+
+    public function test_driver_cannot_create_settlement_for_another_driver(): void
+    {
+        \App\Models\DriverDebt::create([
+            'driver_id' => $this->driverModel->id,
+            'type' => 'commission',
+            'amount' => 100.00,
+        ]);
+
+        $response = $this->actingAs($this->driver, 'sanctum')
+            ->postJson('/api/v1/driver/settlements', [
+                'amount' => 50.00,
+                'method' => 'instapay',
+                'reference' => 'TXN12345',
+            ]);
+        $response->assertStatus(201);
+
+        $settlement = \App\Models\DriverSettlement::first();
+        $this->assertEquals($this->driverModel->id, $settlement->driver_id);
+    }
+
+    public function test_rider_cannot_access_settlement_routes(): void
+    {
+        $responseGet = $this->actingAs($this->rider, 'sanctum')
+            ->getJson('/api/v1/driver/settlements');
+        $responseGet->assertStatus(403);
+
+        $responsePost = $this->actingAs($this->rider, 'sanctum')
+            ->postJson('/api/v1/driver/settlements', [
+                'amount' => 10.00,
+                'method' => 'cash',
+            ]);
+        $responsePost->assertStatus(403);
+    }
+
+    public function test_admin_can_approve_settlement(): void
+    {
+        $admin = User::factory()->create();
+        $admin->roles()->attach(\Spatie\Permission\Models\Role::findOrCreate('admin')->id);
+
+        \App\Models\DriverDebt::create([
+            'driver_id' => $this->driverModel->id,
+            'type' => 'commission',
+            'amount' => 100.00,
+        ]);
+
+        $settlement = \App\Models\DriverSettlement::create([
+            'driver_id' => $this->driverModel->id,
+            'amount' => 100.00,
+            'method' => 'instapay',
+            'reference' => 'TXN123',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/admin/settlements/{$settlement->id}/approve");
+        $response->assertOk();
+
+        $settlement->refresh();
+        $this->assertEquals('approved', $settlement->status);
+        $this->assertEquals($admin->id, $settlement->reviewed_by);
+
+        $this->assertDatabaseMissing('driver_debts', [
+            'driver_id' => $this->driverModel->id,
+            'paid_at' => null,
+        ]);
+    }
+
+    public function test_duplicate_settlement_approval_does_not_double_pay_debts(): void
+    {
+        $admin = User::factory()->create();
+        $admin->roles()->attach(\Spatie\Permission\Models\Role::findOrCreate('admin')->id);
+
+        \App\Models\DriverDebt::create([
+            'driver_id' => $this->driverModel->id,
+            'type' => 'commission',
+            'amount' => 100.00,
+        ]);
+
+        $settlement = \App\Models\DriverSettlement::create([
+            'driver_id' => $this->driverModel->id,
+            'amount' => 100.00,
+            'method' => 'instapay',
+            'reference' => 'TXN123',
+            'status' => 'pending',
+        ]);
+
+        $response1 = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/admin/settlements/{$settlement->id}/approve");
+        $response1->assertOk();
+
+        $response2 = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/admin/settlements/{$settlement->id}/approve");
+        $response2->assertStatus(422);
+    }
+
+    public function test_rejected_settlement_does_not_pay_debts(): void
+    {
+        $admin = User::factory()->create();
+        $admin->roles()->attach(\Spatie\Permission\Models\Role::findOrCreate('admin')->id);
+
+        \App\Models\DriverDebt::create([
+            'driver_id' => $this->driverModel->id,
+            'type' => 'commission',
+            'amount' => 100.00,
+        ]);
+
+        $settlement = \App\Models\DriverSettlement::create([
+            'driver_id' => $this->driverModel->id,
+            'amount' => 100.00,
+            'method' => 'instapay',
+            'reference' => 'TXN123',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/v1/admin/settlements/{$settlement->id}/reject", [
+                'rejection_reason' => 'Invalid reference number',
+            ]);
+        $response->assertOk();
+
+        $settlement->refresh();
+        $this->assertEquals('rejected', $settlement->status);
+
+        $this->assertDatabaseHas('driver_debts', [
+            'driver_id' => $this->driverModel->id,
+            'paid_at' => null,
+            'amount' => 100.00,
+        ]);
+    }
+
+    public function test_negative_settlement_amount_rejected(): void
+    {
+        $response = $this->actingAs($this->driver, 'sanctum')
+            ->postJson('/api/v1/driver/settlements', [
+                'amount' => -50.00,
+                'method' => 'cash',
+            ]);
+        $response->assertStatus(422);
+    }
+
+    public function test_protected_finance_routes_return_correct_auth_status(): void
+    {
+        $this->getJson('/api/v1/payments/wallet')->assertStatus(401);
+        $this->postJson('/api/v1/payments/wallet/fund', ['amount' => 50.00])->assertStatus(401);
+
+        $this->actingAs($this->driver, 'sanctum')
+            ->getJson('/api/v1/admin/settlements')
+            ->assertStatus(403);
+    }
+
+    public function test_wallet_balance_cannot_become_invalid(): void
+    {
+        $riderWallet = \App\Models\Wallet::where('user_id', $this->rider->id)->first();
+        $riderWallet->update(['balance' => 0.00]);
+
+        $deducted = $this->walletRepo->deductBalance($this->rider->id, 50.00);
+        $this->assertFalse($deducted);
+        
+        $riderWallet->refresh();
+        $this->assertEquals(0.00, (float)$riderWallet->balance);
+    }
 }
