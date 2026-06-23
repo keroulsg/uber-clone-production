@@ -707,6 +707,7 @@ export default function DriverCurrentRidePage() {
               variant="outline"
               className="flex-1"
               onClick={() => setCurrentStep('navigate_to_destination')}
+              disabled={completeRide.isPending || isCompletingRef.current}
             >
               Back
             </Button>

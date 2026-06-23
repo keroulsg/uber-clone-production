@@ -274,13 +274,13 @@ export default function DriverDashboardPage() {
                     <div className="flex gap-2">
                       <Button variant="default" size="sm" className="flex-1"
                         onClick={() => { stopAllSoundLoops(); acceptRide.mutate(ride.id) }}
-                        disabled={acceptRide.isPending}>
-                        Accept
+                        disabled={acceptRide.isPending || rejectRide.isPending}>
+                        {acceptRide.isPending ? 'Accepting...' : 'Accept'}
                       </Button>
                       <Button variant="outline" size="sm" className="flex-1"
                         onClick={() => { stopAllSoundLoops(); rejectRide.mutate(ride.id) }}
-                        disabled={rejectRide.isPending}>
-                        <X className="h-4 w-4 mr-1" />Reject
+                        disabled={acceptRide.isPending || rejectRide.isPending}>
+                        <X className="h-4 w-4 mr-1" />{rejectRide.isPending ? 'Rejecting...' : 'Reject'}
                       </Button>
                     </div>
                   </div>

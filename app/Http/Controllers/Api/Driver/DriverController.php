@@ -52,11 +52,35 @@ class DriverController extends Controller
 
     public function toggleOnlineStatus(Request $request): JsonResponse
     {
-        $isOnline = $this->driverService->toggleOnline($request->user()->id);
-
-        if ($isOnline === null) {
-            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        $user = $request->user();
+        if (!$user->is_active) {
+            return response()->json(['success' => false, 'message' => 'Your account is blocked. Please contact support.'], 403);
         }
+
+        $driver = $this->driverRepo->findByUserId($user->id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver profile not found'], 404);
+        }
+
+        if ($driver->status !== 'approved') {
+            return response()->json(['success' => false, 'message' => 'Your driver profile is not approved yet.'], 403);
+        }
+
+        if (!$driver->is_active) {
+            return response()->json(['success' => false, 'message' => 'Your account is suspended. You cannot perform this action.'], 403);
+        }
+
+        // Debt limit blocking (configurable limit)
+        $outstandingDebt = (float) \App\Models\DriverDebt::where('driver_id', $driver->id)->whereNull('paid_at')->sum('amount');
+        $debtLimit = (float) config('driver.debt_limit', 500.00);
+        if (!$driver->is_online && $outstandingDebt >= $debtLimit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot go online. Your outstanding commission debt (' . $outstandingDebt . ' EGP) exceeds the limit of ' . $debtLimit . ' EGP. Please settle your dues.'
+            ], 403);
+        }
+
+        $isOnline = $this->driverService->toggleOnline($user->id);
 
         return response()->json([
             'success' => true,
