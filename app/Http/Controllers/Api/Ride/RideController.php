@@ -199,11 +199,17 @@ class RideController extends Controller
             }
         }
 
-        return response()->json([
+        $responseData = [
             'success' => true,
             'message' => 'Ride created',
             'data' => new RideResource($ride->fresh()->load('vehicleType', 'rider')),
-        ], 201);
+        ];
+
+        if ($eligibleDrivers->isEmpty()) {
+            $responseData['no_driver_message'] = 'No nearby eligible drivers available';
+        }
+
+        return response()->json($responseData, 201);
     }
 
     public function show(int $id, Request $request): JsonResponse

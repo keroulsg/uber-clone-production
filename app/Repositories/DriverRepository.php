@@ -52,7 +52,10 @@ class DriverRepository
         $lngDelta = $radiusKm / (111.32 * cos(deg2rad($pickupLat)));
 
         $drivers = Driver::online()
-            ->whereHas('vehicles', fn($q) => $q->where('vehicle_type_id', $vehicleTypeId))
+            ->where('is_approved', true)
+            ->where('status', 'approved')
+            ->whereHas('user', fn($q) => $q->where('is_active', true))
+            ->whereHas('vehicles', fn($q) => $q->where('vehicle_type_id', $vehicleTypeId)->where('is_active', true)->where('status', 'active'))
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->whereBetween('latitude', [$pickupLat - $latDelta, $pickupLat + $latDelta])

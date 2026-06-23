@@ -64,18 +64,9 @@ class DriverRideController extends Controller
 
     public function accept(int $rideId, Request $request): JsonResponse
     {
-        $ride = $this->rideRepo->findById($rideId);
-        if (!$ride) {
-            return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
-        }
-
         $driver = $this->driverRepo->findByUserId($request->user()->id);
         if (!$driver) {
             return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
-        }
-
-        if ($ride->status !== \App\Enums\RideStatus::SearchingDriver) {
-            return response()->json(['success' => false, 'message' => 'Ride is no longer available'], 409);
         }
 
         $activeRide = $this->rideRepo->findActiveByDriver($driver->id);
@@ -83,44 +74,64 @@ class DriverRideController extends Controller
             return response()->json(['success' => false, 'message' => 'You already have an active ride'], 409);
         }
 
-        $offer = \App\Models\RideDriverOffer::where('ride_id', $ride->id)
-            ->where('driver_id', $driver->id)
-            ->where('status', 'pending')
-            ->first();
+        try {
+            $ride = \Illuminate\Support\Facades\DB::transaction(function () use ($rideId, $driver) {
+                $lockedRide = \App\Models\Ride::where('id', $rideId)->lockForUpdate()->first();
+                if (!$lockedRide) {
+                    throw new \RuntimeException('Ride not found', 404);
+                }
 
-        if (!$offer) {
-            return response()->json(['success' => false, 'message' => 'No pending offer for this ride'], 403);
+                if ($lockedRide->status !== \App\Enums\RideStatus::SearchingDriver) {
+                    throw new \RuntimeException('Ride is no longer available', 409);
+                }
+
+                $offer = \App\Models\RideDriverOffer::where('ride_id', $lockedRide->id)
+                    ->where('driver_id', $driver->id)
+                    ->where('status', 'pending')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$offer) {
+                    throw new \RuntimeException('No pending offer for this ride', 403);
+                }
+
+                $lockedRide->update([
+                    'driver_id' => $driver->id,
+                    'status' => \App\Enums\RideStatus::DriverAssigned,
+                ]);
+
+                $offer->update(['status' => 'accepted']);
+
+                \App\Models\RideDriverOffer::where('ride_id', $lockedRide->id)
+                    ->where('driver_id', '!=', $driver->id)
+                    ->update(['status' => 'rejected']);
+
+                \App\Models\RideStatusHistory::create([
+                    'ride_id' => $lockedRide->id,
+                    'status' => \App\Enums\RideStatus::DriverAssigned->value,
+                    'created_at' => now(),
+                ]);
+
+                return $lockedRide;
+            });
+
+            Notification::create([
+                'type' => 'ride_accepted',
+                'notifiable_type' => \App\Models\User::class,
+                'notifiable_id' => $ride->rider_id,
+                'data' => ['ride_id' => $ride->id, 'driver_id' => $driver->id, 'message' => 'A driver has accepted your ride.'],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ride accepted',
+                'data' => new RideResource($ride->fresh()->load('rider', 'vehicleType', 'driver.user', 'vehicle')),
+            ]);
+        } catch (\RuntimeException $e) {
+            $code = $e->getCode();
+            if ($code < 100 || $code >= 600) $code = 400;
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $code);
         }
-
-        $ride->update([
-            'driver_id' => $driver->id,
-            'status' => \App\Enums\RideStatus::DriverAssigned,
-        ]);
-
-        $offer->update(['status' => 'accepted']);
-
-        \App\Models\RideDriverOffer::where('ride_id', $ride->id)
-            ->where('driver_id', '!=', $driver->id)
-            ->update(['status' => 'rejected']);
-
-        \App\Models\RideStatusHistory::create([
-            'ride_id' => $ride->id,
-            'status' => \App\Enums\RideStatus::DriverAssigned->value,
-            'created_at' => now(),
-        ]);
-
-        Notification::create([
-            'type' => 'ride_accepted',
-            'notifiable_type' => \App\Models\User::class,
-            'notifiable_id' => $ride->rider_id,
-            'data' => ['ride_id' => $ride->id, 'driver_id' => $driver->id, 'message' => 'A driver has accepted your ride.'],
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Ride accepted',
-            'data' => new RideResource($ride->fresh()->load('rider', 'vehicleType', 'driver.user', 'vehicle')),
-        ]);
     }
 
     public function reject(int $rideId, Request $request): JsonResponse

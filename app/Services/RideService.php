@@ -196,7 +196,7 @@ class RideService
     public function cancelRide(int $rideId, ?string $reason = null, ?string $cancelledBy = null, ?int $reasonId = null, ?string $comment = null): Ride
     {
         $ride = $this->rideRepo->findById($rideId);
-        if (!$ride || in_array($ride->status, [RideStatus::RideCompleted, RideStatus::Cancelled])) {
+        if (!$ride || in_array($ride->status, [RideStatus::RideCompleted, RideStatus::Cancelled, RideStatus::RideStarted])) {
             throw new \RuntimeException('Invalid state transition');
         }
 
