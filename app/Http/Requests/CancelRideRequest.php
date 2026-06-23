@@ -15,7 +15,25 @@ class CancelRideRequest extends FormRequest
     {
         return [
             'cancellation_reason' => 'required|string|max:500',
-            'cancellation_reason_id' => 'nullable|integer|exists:cancellation_reasons,id',
+            'cancellation_reason_id' => [
+                'nullable',
+                'integer',
+                function ($attribute, $value, $fail) {
+                    $reason = \App\Models\CancellationReason::find($value);
+                    if (!$reason) {
+                        $fail('The selected cancellation reason is invalid.');
+                        return;
+                    }
+                    if (!$reason->is_active) {
+                        $fail('The selected cancellation reason is inactive.');
+                        return;
+                    }
+                    if ($reason->actor !== 'rider') {
+                        $fail('The selected cancellation reason is not allowed for riders.');
+                        return;
+                    }
+                },
+            ],
             'cancellation_comment' => 'nullable|string|max:500',
         ];
     }

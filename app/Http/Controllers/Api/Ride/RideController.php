@@ -314,44 +314,60 @@ class RideController extends Controller
     public function cancel(int $id, CancelRideRequest $request): JsonResponse
     {
         try {
-            $ride = $this->rideRepo->findById($id);
-            if (!$ride) {
-                return response()->json(['success' => false, 'message' => 'Ride not found'], 404);
-            }
-            if ($ride->rider_id !== $request->user()->id) {
-                return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
-            }
-
-            $reasonId = $request->input('cancellation_reason_id');
-            $reasonText = $request->input('cancellation_reason');
-            $comment = $request->input('cancellation_comment');
-
-            // Penalty: if driver is assigned and within 150m of pickup, apply penalty
             $penaltyApplied = false;
-            if ($ride->driver_id && $ride->driver) {
-                $driverLat = $ride->driver->latitude;
-                $driverLng = $ride->driver->longitude;
+            $penaltyAmount = 0.0;
 
-                if ($driverLat && $driverLng) {
-                    $distanceToPickup = $this->calculateDistance(
-                        (float) $driverLat,
-                        (float) $driverLng,
-                        (float) $ride->pickup_latitude,
-                        (float) $ride->pickup_longitude
-                    );
+            $ride = \Illuminate\Support\Facades\DB::transaction(function () use ($id, $request, &$penaltyApplied, &$penaltyAmount) {
+                $lockedRide = \App\Models\Ride::where('id', $id)->lockForUpdate()->first();
+                if (!$lockedRide) {
+                    throw new \RuntimeException('Ride not found', 404);
+                }
+                if ($lockedRide->rider_id !== $request->user()->id) {
+                    throw new \RuntimeException('Unauthorized', 403);
+                }
 
-                    if ($distanceToPickup <= 0.15) {
-                        // Apply cancellation penalty
-                        $penaltyAmount = $ride->vehicleType?->cancellation_fee ?? 5.00;
-                        Log::info('Rider cancellation penalty triggered', [
-                            'ride_id' => $ride->id,
-                            'distance_km' => $distanceToPickup,
-                            'penalty' => $penaltyAmount,
-                        ]);
+                // If already cancelled, do nothing and return safely (idempotent)
+                if ($lockedRide->status === \App\Enums\RideStatus::Cancelled) {
+                    return $lockedRide;
+                }
 
-                        // Record penalty via wallet/ledger
-                        $wallet = \App\Models\Wallet::where('user_id', $request->user()->id)->first();
-                        if ($wallet && $wallet->balance >= $penaltyAmount) {
+                // Completed or started rides cannot be cancelled
+                if (in_array($lockedRide->status, [\App\Enums\RideStatus::RideCompleted, \App\Enums\RideStatus::Completed, \App\Enums\RideStatus::RideStarted])) {
+                    throw new \RuntimeException('Cannot cancel a started or completed ride', 422);
+                }
+
+                $reasonId = $request->input('cancellation_reason_id');
+                $reasonText = $request->input('cancellation_reason');
+                $comment = $request->input('cancellation_comment');
+
+                // Penalty: if driver is assigned and within 150m of pickup, apply penalty
+                if ($lockedRide->driver_id && $lockedRide->driver) {
+                    $driverLat = $lockedRide->driver->latitude;
+                    $driverLng = $lockedRide->driver->longitude;
+
+                    if ($driverLat && $driverLng) {
+                        $distanceToPickup = $this->calculateDistance(
+                            (float) $driverLat,
+                            (float) $driverLng,
+                            (float) $lockedRide->pickup_latitude,
+                            (float) $lockedRide->pickup_longitude
+                        );
+
+                        if ($distanceToPickup <= 0.15) {
+                            // Apply cancellation penalty
+                            $penaltyAmount = $lockedRide->vehicleType?->cancellation_fee ?? 5.00;
+                            Log::info('Rider cancellation penalty triggered', [
+                                'ride_id' => $lockedRide->id,
+                                'distance_km' => $distanceToPickup,
+                                'penalty' => $penaltyAmount,
+                            ]);
+
+                            // Record penalty via wallet/ledger
+                            $wallet = \App\Models\Wallet::where('user_id', $request->user()->id)->lockForUpdate()->first();
+                            if (!$wallet || $wallet->balance < $penaltyAmount) {
+                                throw new \RuntimeException('Insufficient wallet balance to cover the cancellation fee.', 422);
+                            }
+
                             $balanceBefore = (float) $wallet->balance;
                             $wallet->balance = $balanceBefore - $penaltyAmount;
                             $wallet->save();
@@ -363,7 +379,7 @@ class RideController extends Controller
                                 'amount' => $penaltyAmount,
                                 'balance_before' => $balanceBefore,
                                 'balance_after' => $balanceAfter,
-                                'description' => 'Cancellation penalty — ride #' . $ride->booking_id,
+                                'description' => 'Cancellation penalty — ride #' . $lockedRide->booking_id,
                             ]);
 
                             $penaltyApplied = true;
@@ -373,27 +389,29 @@ class RideController extends Controller
                                 'notifiable_type' => \App\Models\User::class,
                                 'notifiable_id' => $request->user()->id,
                                 'data' => [
-                                    'ride_id' => $ride->id,
+                                    'ride_id' => $lockedRide->id,
                                     'amount' => $penaltyAmount,
-                                    'message' => "Cancellation penalty of {$penaltyAmount} applied for ride #{$ride->booking_id}.",
+                                    'message' => "Cancellation penalty of {$penaltyAmount} applied for ride #{$lockedRide->booking_id}.",
                                 ],
                             ]);
                         }
+                    } else {
+                        Log::info('Cannot calculate cancellation penalty — driver location unknown', [
+                            'ride_id' => $lockedRide->id,
+                        ]);
                     }
-                } else {
-                    Log::info('Cannot calculate cancellation penalty — driver location unknown', [
-                        'ride_id' => $ride->id,
-                    ]);
                 }
-            }
 
-            $ride = $this->rideService->cancelRide(
-                $id,
-                $reasonText,
-                'rider',
-                $reasonId,
-                $comment
-            );
+                $updatedRide = $this->rideService->cancelRide(
+                    $id,
+                    $reasonText,
+                    'rider',
+                    $reasonId,
+                    $comment
+                );
+
+                return $updatedRide;
+            });
 
             $responseData = new RideResource($ride->fresh()->load('driver.user', 'vehicleType'));
 
@@ -403,11 +421,15 @@ class RideController extends Controller
                 'data' => $responseData,
                 'penalty' => $penaltyApplied ? [
                     'applied' => true,
-                    'amount' => $penaltyAmount ?? 0,
+                    'amount' => $penaltyAmount,
                 ] : null,
             ]);
         } catch (\RuntimeException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+            $code = $e->getCode();
+            if ($code < 400 || $code >= 600) {
+                $code = 400;
+            }
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $code);
         }
     }
 

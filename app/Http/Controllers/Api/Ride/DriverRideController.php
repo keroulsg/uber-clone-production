@@ -136,31 +136,45 @@ class DriverRideController extends Controller
 
     public function reject(int $rideId, Request $request): JsonResponse
     {
-        $driver = $this->driverRepo->findByUserId($request->user()->id);
-        if (!$driver) {
-            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($rideId, $request) {
+                $driver = $this->driverRepo->findByUserId($request->user()->id);
+                if (!$driver) {
+                    throw new \RuntimeException('Driver not found', 404);
+                }
+
+                $offer = \App\Models\RideDriverOffer::where('ride_id', $rideId)
+                    ->where('driver_id', $driver->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$offer) {
+                    throw new \RuntimeException('No pending offer for this ride', 404);
+                }
+
+                if ($offer->status !== 'pending') {
+                    throw new \RuntimeException('Offer is not pending', 400);
+                }
+
+                $offer->update(['status' => 'rejected']);
+
+                $ride = \App\Models\Ride::where('id', $rideId)->lockForUpdate()->first();
+                if ($ride && $ride->status === \App\Enums\RideStatus::SearchingDriver) {
+                    $this->rideService->processDriverOffers($ride);
+                }
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Ride rejected',
+            ]);
+        } catch (\RuntimeException $e) {
+            $code = $e->getCode();
+            if ($code < 100 || $code >= 600) {
+                $code = 400;
+            }
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $code);
         }
-
-        $offer = \App\Models\RideDriverOffer::where('ride_id', $rideId)
-            ->where('driver_id', $driver->id)
-            ->where('status', 'pending')
-            ->first();
-
-        if (!$offer) {
-            return response()->json(['success' => false, 'message' => 'No pending offer for this ride'], 404);
-        }
-
-        $offer->update(['status' => 'rejected']);
-
-        $ride = $this->rideRepo->findById($rideId);
-        if ($ride && $ride->status === \App\Enums\RideStatus::SearchingDriver) {
-            $this->rideService->processDriverOffers($ride);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Ride rejected',
-        ]);
     }
 
     public function arrived(int $rideId, Request $request): JsonResponse
