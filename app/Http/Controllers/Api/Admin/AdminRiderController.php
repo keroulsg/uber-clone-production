@@ -7,6 +7,9 @@ use App\Http\Resources\RiderResource;
 use App\Models\Rider;
 use App\Models\BanHistory;
 use App\Models\Ride;
+use App\Models\Payment;
+use App\Enums\PaymentStatus;
+use App\Enums\RideStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -37,8 +40,12 @@ class AdminRiderController extends Controller
         }
 
         $rides = Ride::where('rider_id', $id)->get();
-        $completedRides = $rides->where('status', 'completed')->count();
-        $cancelledRides = $rides->whereIn('status', ['cancelled', 'cancelled_by_rider', 'cancelled_by_driver'])->count();
+        $completedRides = $rides->filter(fn($r) => $r->status === RideStatus::RideCompleted)->count();
+        $cancelledRides = $rides->filter(fn($r) => in_array($r->status, [
+            RideStatus::Cancelled,
+            RideStatus::CancelledByRider,
+            RideStatus::CancelledByDriver,
+        ], true))->count();
 
         $wallet = \App\Models\Wallet::where('user_id', $rider->user_id)->first();
 
@@ -47,10 +54,10 @@ class AdminRiderController extends Controller
             'data' => [
                 'rider' => new RiderResource($rider),
                 'stats' => [
-                    'total_rides' => (int) $rider->total_rides,
+                    'total_rides' => (int) $rides->count(),
                     'completed_rides' => $completedRides,
                     'cancelled_rides' => $cancelledRides,
-                    'total_spent' => (float) $rider->total_spent,
+                    'total_spent' => (float) Payment::whereHas('ride', fn($q) => $q->where('rider_id', $id))->where('status', PaymentStatus::Completed)->sum('amount'),
                     'average_rating' => (float) $rider->average_rating,
                 ],
                 'wallet' => $wallet ? [

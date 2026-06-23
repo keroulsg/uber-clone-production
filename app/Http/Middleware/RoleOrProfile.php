@@ -17,8 +17,15 @@ class RoleOrProfile
         }
 
         $roles = $user->roles ?? [];
+        if ($roles instanceof \Illuminate\Support\Collection) {
+            $roles = $roles->map(fn($r) => is_object($r) ? ($r->name ?? '') : (string) $r)->toArray();
+        } elseif (is_array($roles)) {
+            $roles = array_map(fn($r) => is_object($r) ? ($r->name ?? '') : (string) $r, $roles);
+        } else {
+            $roles = [];
+        }
 
-        if (in_array($role, $roles)) {
+        if (in_array($role, $roles) || (method_exists($user, 'hasRole') && $user->hasRole($role))) {
             return $next($request);
         }
 

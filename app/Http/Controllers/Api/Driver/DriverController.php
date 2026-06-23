@@ -226,7 +226,7 @@ class DriverController extends Controller
         $column = $columnMap[$validated['type']];
         $file = $validated['file'];
         $filename = $driver->id . '_' . $validated['type'] . '_' . time() . '.' . $file->extension();
-        $path = $file->storeAs('driver-documents', $filename, 'public');
+        $path = $file->storeAs('driver-documents', $filename, 'local');
 
         if (!$path) {
             return response()->json(['success' => false, 'message' => 'Failed to store file'], 500);
@@ -239,6 +239,65 @@ class DriverController extends Controller
             'message' => 'Document uploaded',
             'data' => new DriverResource($driver->fresh()->load('user', 'vehicles.vehicleType')),
         ]);
+    }
+
+    public function downloadDocument(Request $request, int $driverId, string $type)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $driver = $this->driverRepo->findById($driverId);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $roles = $user->roles ?? [];
+        $isAdmin = false;
+        if (is_array($roles) && in_array('admin', $roles)) {
+            $isAdmin = true;
+        } elseif (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
+            $isAdmin = true;
+        }
+        $isOwner = $driver->user_id === $user->id;
+
+        if (!$isAdmin && !$isOwner) {
+            return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+        }
+
+        $columnMap = [
+            'license_front' => 'license_front_image',
+            'license_back' => 'license_back_image',
+            'identity_front' => 'identity_front_image',
+            'identity_back' => 'identity_back_image',
+            'criminal_record' => 'criminal_record',
+        ];
+
+        if (!array_key_exists($type, $columnMap)) {
+            return response()->json(['success' => false, 'message' => 'Invalid document type'], 400);
+        }
+
+        $path = $driver->{$columnMap[$type]};
+
+        if (!$path) {
+            return response()->json(['success' => false, 'message' => 'Document not uploaded'], 404);
+        }
+
+        // Prevent path traversal
+        if (str_contains($path, '..') || !str_starts_with($path, 'driver-documents/')) {
+            return response()->json(['success' => false, 'message' => 'Invalid file path'], 400);
+        }
+
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            return \Illuminate\Support\Facades\Storage::disk('local')->response($path);
+        }
+
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+            return \Illuminate\Support\Facades\Storage::disk('public')->response($path);
+        }
+
+        return response()->json(['success' => false, 'message' => 'File not found'], 404);
     }
 
     public function submitVerification(Request $request): JsonResponse

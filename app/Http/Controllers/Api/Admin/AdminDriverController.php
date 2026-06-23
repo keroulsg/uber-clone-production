@@ -92,13 +92,13 @@ class AdminDriverController extends Controller
         $walletRidesCount = (int) (clone $allCompletedPayments)->where('payment_method', 'wallet')->count();
 
         $rides = Ride::where('driver_id', $id)->get();
-        $completedRides = $rides->where('status', RideStatus::RideCompleted->value)->count();
+        $completedRides = $rides->filter(fn($r) => $r->status === RideStatus::RideCompleted)->count();
         $todayCompletedRides = Ride::where('driver_id', $id)->where('status', RideStatus::RideCompleted)->whereDate('completed_at', $now->toDateString())->count();
-        $cancelledRides = $rides->whereIn('status', [
-            RideStatus::Cancelled->value,
-            RideStatus::CancelledByRider->value,
-            RideStatus::CancelledByDriver->value,
-        ])->count();
+        $cancelledRides = $rides->filter(fn($r) => in_array($r->status, [
+            RideStatus::Cancelled,
+            RideStatus::CancelledByRider,
+            RideStatus::CancelledByDriver,
+        ], true))->count();
 
         $unpaidDebts = $driver->debts()->whereNull('paid_at');
         $totalDebt = (float) (clone $unpaidDebts)->sum('amount');

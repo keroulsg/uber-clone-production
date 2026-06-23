@@ -50,7 +50,12 @@ Route::prefix('v1')->group(function () {
     Route::get('cancellation-reasons', [CancellationReasonController::class, 'index']);
 
     // Authenticated routes
-    Route::middleware(['auth:sanctum', 'throttle:200,1,api'])->group(function () {
+    Route::middleware(['auth:sanctum', 'throttle:200,1,api', 'not_suspended'])->group(function () {
+
+        // Secure Driver documents streaming route (authenticated, signed, verified admin or owner driver check)
+        Route::get('driver/{driverId}/documents/{type}', [DriverController::class, 'downloadDocument'])
+            ->name('driver.document')
+            ->middleware('signed');
 
         // Auth
         Route::prefix('auth')->group(function () {
