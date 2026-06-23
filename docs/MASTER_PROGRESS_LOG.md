@@ -8,7 +8,7 @@ This log tracks the progress of the implementation plan, completed phases, and p
 * **Currency**: EGP
 * **Timezone**: Africa/Cairo
 * **Active Branch**: `p0-fix-arrived-and-saved-place-booking`
-* **Current HEAD**: `2127d6d7`
+* **Current HEAD**: `e74e4daf`
 * **Active DB Connection**: SQLite (dev) / MySQL (prod)
 * **Active Environment**: Local Development
 
@@ -31,8 +31,8 @@ This log tracks the progress of the implementation plan, completed phases, and p
 | **Phase 1** | Ride Lifecycle & Dispatch Lock | `[x] COMPLETED` | 100 | Nearest-first sequential dispatching, active driver/vehicle filters, row lock concurrency controls, E2E lifecycle sequence validations, and 48 tests verified. |
 | **Phase 2** | Rider Core Flow Lock | `[x] COMPLETED` | 100 | Stabilized profiles, address/city fields, saved places quick selector, insufficient balance toast warnings, and rating modal triggers. |
 | **Phase 3** | Driver Core Flow Lock | `[x] COMPLETED` | 100 | Approved driver status validations, debt limits, sound loop controls, and mutation button locks verified. |
-| **Phase 4** | Admin Core Data Lock | `[x] IMPLEMENTED — PENDING OWNER REVIEW` | - | Audited admin dashboard metrics, paginations, and verified route protections with automated test suite. |
-| **Phase 5** | Pricing Engine Lock | `[ ] PENDING` | - | - |
+| **Phase 4** | Admin Core Data Lock | `[x] COMPLETED` | 100 | Audited admin dashboard metrics, paginations, and verified route protections with automated test suite. |
+| **Phase 5** | Pricing Engine Lock | `[x] IMPLEMENTED — PENDING OWNER REVIEW` | - | Audited pricing multipliers, waiting fee boundaries, surcharge structures, and fallback routing with automated test suite. |
 | **Phase 6** | Payments/Wallet/Debt/Settlements | `[ ] PENDING` | - | - |
 | **Phase 7** | Cancellations / Penalties Lock | `[ ] PENDING` | - | - |
 | **Phase 8** | Security Hardening Lock | `[ ] PENDING` | - | - |
