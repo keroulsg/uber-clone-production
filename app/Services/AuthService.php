@@ -22,6 +22,10 @@ class AuthService
 
     public function register(RegisterUserDTO $dto): array
     {
+        if (!in_array($dto->role, ['rider', 'driver'])) {
+            abort(403, 'Unauthorized role registration.');
+        }
+
         $user = $this->userRepo->create([
             'name' => $dto->name,
             'email' => $dto->email,

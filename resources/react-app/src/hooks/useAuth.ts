@@ -97,7 +97,7 @@ export function useUser() {
 export function useUpdateProfile() {
   const setUser = useAuthStore((s) => s.setUser)
   return useMutation({
-    mutationFn: (data: FormData) => authApi.updateProfile(data),
+    mutationFn: (data: { name: string; phone: string; address?: string; city?: string }) => authApi.updateProfile(data),
     onSuccess: (res) => {
       setUser(res.data as User)
     },

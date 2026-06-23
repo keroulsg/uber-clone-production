@@ -8,7 +8,7 @@ This log tracks the progress of the implementation plan, completed phases, and p
 * **Currency**: EGP
 * **Timezone**: Africa/Cairo
 * **Active Branch**: `p0-fix-arrived-and-saved-place-booking`
-* **Current HEAD**: `dde5833`
+* **Current HEAD**: `587aa8b6`
 * **Active DB Connection**: SQLite (dev) / MySQL (prod)
 * **Active Environment**: Local Development
 
@@ -29,7 +29,7 @@ This log tracks the progress of the implementation plan, completed phases, and p
 | **Phase -1** | Project State Control | `[x] COMPLETED` | 100 | Baseline tests and React build passed; views cache cleared; repository state locked. |
 | **Phase 0** | Immediate Stabilization Lock | `[x] COMPLETED` | 100 | Suspend middleware logout bypass, private driver documents signed route, React favorites query params, and Admin metrics enum fixes. |
 | **Phase 1** | Ride Lifecycle & Dispatch Lock | `[x] COMPLETED` | 100 | Nearest-first sequential dispatching, active driver/vehicle filters, row lock concurrency controls, E2E lifecycle sequence validations, and 48 tests verified. |
-| **Phase 2** | Rider Core Flow Lock | `[ ] PENDING` | - | - |
+| **Phase 2** | Rider Core Flow Lock | `[x] COMPLETED` | 100 | Stabilized profiles, address/city fields, saved places quick selector, insufficient balance toast warnings, and rating modal triggers. |
 | **Phase 3** | Driver Core Flow Lock | `[ ] PENDING` | - | - |
 | **Phase 4** | Admin Core Data Lock | `[ ] PENDING` | - | - |
 | **Phase 5** | Pricing Engine Lock | `[ ] PENDING` | - | - |

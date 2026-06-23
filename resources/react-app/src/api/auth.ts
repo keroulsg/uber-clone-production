@@ -35,7 +35,7 @@ export const logout = (): Promise<ApiResponse<null>> =>
 export const getUser = (): Promise<ApiResponse<User>> =>
   apiClient.get('/auth/user').then((r) => r.data)
 
-export const updateProfile = (data: FormData): Promise<ApiResponse<User>> =>
+export const updateProfile = (data: { name: string; phone: string; address?: string; city?: string }): Promise<ApiResponse<User>> =>
   apiClient.post('/auth/profile', data).then((r) => r.data)
 
 export const changePassword = (

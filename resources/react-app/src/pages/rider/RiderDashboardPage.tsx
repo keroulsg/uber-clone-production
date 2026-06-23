@@ -9,7 +9,7 @@ import { useCreateRide, useEstimateFare } from '@/hooks/useRides'
 import { useVehicleTypes } from '@/hooks/useVehicles'
 import { useWallet } from '@/hooks/usePayments'
 import { useAuthStore } from '@/stores/authStore'
-import { useCreateSavedPlace } from '@/hooks/useSavedPlaces'
+import { useCreateSavedPlace, useSavedPlaces } from '@/hooks/useSavedPlaces'
 import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -29,7 +29,7 @@ import { Map } from '@/components/common/Map'
 import { PageHeader } from '@/components/common/PageHeader'
 import { cn } from '@/lib/utils'
 import { MapService } from '@/maps/MapService'
-import type { VehicleType, FareBreakdown, Wallet as WalletType, RoutePoint } from '@/types'
+import type { VehicleType, FareBreakdown, Wallet as WalletType, RoutePoint, SavedPlace } from '@/types'
 
 const vehicleIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   car: Car,
@@ -54,6 +54,9 @@ export default function RiderDashboardPage() {
 
   const wallet = walletData?.data as WalletType | undefined
   const vehicleTypes = ((vehicleTypesData?.data ?? []) as VehicleType[]).filter((vt) => vt.is_active)
+
+  const { data: savedPlacesData, isLoading: savedPlacesLoading } = useSavedPlaces()
+  const savedPlacesList = (savedPlacesData?.data ?? []) as SavedPlace[]
 
   const [pickupAddress, setPickupAddress] = useState('')
   const [pickupLat, setPickupLat] = useState<number | null>(null)
@@ -277,6 +280,17 @@ export default function RiderDashboardPage() {
 
   const handleRequestRide = () => {
     if (!canRequest || !pickupLat || !pickupLng || !destLat || !destLng || !selectedVehicleType) return
+
+    // Insufficient balance check
+    if (paymentMethod === 'wallet' && fareEstimate) {
+      const balance = wallet?.balance ?? 0
+      const estimate = fareEstimate.fare
+      if (balance < estimate) {
+        toast.error(`Insufficient balance. You need ${formatCurrency(estimate)} but your wallet balance is only ${formatCurrency(balance)}. Please top up or pay with cash.`)
+        return
+      }
+    }
+
     createRide.mutate(
       {
         pickup: { address: pickupAddress, lat: pickupLat, lng: pickupLng },
@@ -287,6 +301,10 @@ export default function RiderDashboardPage() {
       },
       {
         onSuccess: () => navigate('/rider/current-ride'),
+        onError: (err: any) => {
+          const msg = err?.response?.data?.message || 'Failed to request ride. Please try again.'
+          toast.error(msg)
+        }
       }
     )
   }
@@ -369,6 +387,37 @@ export default function RiderDashboardPage() {
 
       <Card className="relative">
         <CardContent className="p-5 space-y-4">
+          {/* Saved Places Quick Selector */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Quick Select Saved Places</Label>
+            <div className="flex flex-wrap gap-2">
+              {savedPlacesLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : savedPlacesList.length === 0 ? (
+                <span className="text-xs text-muted-foreground italic">No saved places found</span>
+              ) : (
+                savedPlacesList.map((place: SavedPlace) => (
+                  <Button
+                    key={place.id}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8 gap-1.5"
+                    onClick={() => {
+                      setPickupLat(Number(place.latitude))
+                      setPickupLng(Number(place.longitude))
+                      setPickupAddress(place.address)
+                      toast.success(`Set pickup to ${place.name}`)
+                    }}
+                  >
+                    <Heart className="h-3.5 w-3.5 text-red-500 fill-red-500" />
+                    <span>{place.name}</span>
+                  </Button>
+                ))
+              )}
+            </div>
+          </div>
+          <Separator className="my-2" />
+
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-emerald-500" />

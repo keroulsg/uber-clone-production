@@ -180,6 +180,12 @@ export default function RiderCurrentRidePage() {
   }, [hasDriver, isTerminal, hasDriverPos])
 
   useEffect(() => {
+    if (completedRideForRating && !completedRideForRating.riderRated) {
+      setRateDialogOpen(true)
+    }
+  }, [completedRideForRating])
+
+  useEffect(() => {
     if (currentRide && currentRide.femaleDriverPreferred && !currentRide.femaleDriverUnavailable && !currentRide.fallbackToAnyDriverAccepted && currentRide.status === 'searching_driver') {
       const elapsed = (Date.now() - searchStartTime) / 1000 / 60
       if (elapsed >= FEMALE_SEARCH_TIMEOUT_MINUTES) setFallbackOpen(true)

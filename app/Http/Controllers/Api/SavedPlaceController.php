@@ -61,10 +61,18 @@ class SavedPlaceController extends Controller
 
     public function show(int $id, Request $request): JsonResponse
     {
-        $place = SavedPlace::where('id', $id)->where('user_id', $request->user()->id)->first();
+        if (!app(FeatureFlagService::class)->isEnabled('saved_places')) {
+            return response()->json(['success' => false, 'message' => 'Feature not available'], 403);
+        }
+
+        $place = SavedPlace::where('id', $id)->first();
 
         if (!$place) {
             return response()->json(['success' => false, 'message' => 'Place not found'], 404);
+        }
+
+        if ($place->user_id !== $request->user()->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         return response()->json([
@@ -75,10 +83,18 @@ class SavedPlaceController extends Controller
 
     public function update(int $id, Request $request): JsonResponse
     {
-        $place = SavedPlace::where('id', $id)->where('user_id', $request->user()->id)->first();
+        if (!app(FeatureFlagService::class)->isEnabled('saved_places')) {
+            return response()->json(['success' => false, 'message' => 'Feature not available'], 403);
+        }
+
+        $place = SavedPlace::where('id', $id)->first();
 
         if (!$place) {
             return response()->json(['success' => false, 'message' => 'Place not found'], 404);
+        }
+
+        if ($place->user_id !== $request->user()->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         $request->validate([
@@ -101,10 +117,18 @@ class SavedPlaceController extends Controller
 
     public function destroy(int $id, Request $request): JsonResponse
     {
-        $place = SavedPlace::where('id', $id)->where('user_id', $request->user()->id)->first();
+        if (!app(FeatureFlagService::class)->isEnabled('saved_places')) {
+            return response()->json(['success' => false, 'message' => 'Feature not available'], 403);
+        }
+
+        $place = SavedPlace::where('id', $id)->first();
 
         if (!$place) {
             return response()->json(['success' => false, 'message' => 'Place not found'], 404);
+        }
+
+        if ($place->user_id !== $request->user()->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         $place->delete();

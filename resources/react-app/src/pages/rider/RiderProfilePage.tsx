@@ -71,18 +71,35 @@ export default function RiderProfilePage() {
   }, [user, profileForm])
 
   const onProfileSubmit = (data: ProfileForm) => {
-    const formData = new FormData()
-    formData.append('name', data.name)
-    formData.append('phone', data.phone)
-    if (data.address) formData.append('address', data.address)
-    if (data.city) formData.append('city', data.city)
-    updateProfile.mutate(formData)
+    updateProfile.mutate({
+      name: data.name,
+      phone: data.phone,
+      address: data.address || undefined,
+      city: data.city || undefined,
+    }, {
+      onSuccess: () => {
+        toast.success('Profile updated successfully')
+      },
+      onError: (err: any) => {
+        const msg = err?.response?.data?.message || 'Profile update failed'
+        toast.error(msg)
+      }
+    })
   }
 
   const onPasswordSubmit = (data: PasswordForm) => {
     changePassword.mutate(
       { currentPassword: data.currentPassword, newPassword: data.newPassword, newPasswordConfirmation: data.newPasswordConfirmation },
-      { onSuccess: () => passwordForm.reset() }
+      {
+        onSuccess: () => {
+          toast.success('Password changed successfully')
+          passwordForm.reset()
+        },
+        onError: (err: any) => {
+          const msg = err?.response?.data?.message || 'Password change failed'
+          toast.error(msg)
+        }
+      }
     )
   }
 
@@ -97,11 +114,27 @@ export default function RiderProfilePage() {
       toast.error('Image must be under 2MB')
       return
     }
-    uploadAvatar.mutate(file)
+    uploadAvatar.mutate(file, {
+      onSuccess: () => {
+        toast.success('Avatar uploaded successfully')
+      },
+      onError: (err: any) => {
+        const msg = err?.response?.data?.message || 'Avatar upload failed'
+        toast.error(msg)
+      }
+    })
   }
 
   const handleAvatarDelete = () => {
-    deleteAvatar.mutate()
+    deleteAvatar.mutate(undefined, {
+      onSuccess: () => {
+        toast.success('Avatar removed successfully')
+      },
+      onError: (err: any) => {
+        const msg = err?.response?.data?.message || 'Avatar delete failed'
+        toast.error(msg)
+      }
+    })
   }
 
   if (!user) return <LoadingScreen />
@@ -167,7 +200,7 @@ export default function RiderProfilePage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" {...profileForm.register('name')} />
+                  <Input id="name" {...profileForm.register('name')} disabled={updateProfile.isPending} />
                   {profileForm.formState.errors.name && (
                     <p className="text-xs text-destructive">{profileForm.formState.errors.name.message}</p>
                   )}
@@ -178,18 +211,18 @@ export default function RiderProfilePage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" {...profileForm.register('phone')} />
+                  <Input id="phone" {...profileForm.register('phone')} disabled={updateProfile.isPending} />
                   {profileForm.formState.errors.phone && (
                     <p className="text-xs text-destructive">{profileForm.formState.errors.phone.message}</p>
                   )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
-                  <Input id="city" {...profileForm.register('city')} />
+                  <Input id="city" {...profileForm.register('city')} disabled={updateProfile.isPending} />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="address">Address</Label>
-                  <Input id="address" {...profileForm.register('address')} />
+                  <Input id="address" {...profileForm.register('address')} disabled={updateProfile.isPending} />
                 </div>
               </div>
               <Button type="submit" className="gap-2" disabled={updateProfile.isPending}>
