@@ -31,3 +31,5 @@ resources/react-app/dist/
 .last-run.json
 *.tsbuildinfo
 storage/framework/testing/
+storage/framework/views/
+
