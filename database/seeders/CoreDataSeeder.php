@@ -43,6 +43,7 @@ class CoreDataSeeder extends Seeder
             ['key' => 'price_per_km', 'value' => '5', 'group' => 'pricing', 'type' => 'decimal', 'description' => 'Price per kilometer'],
             ['key' => 'price_per_minute', 'value' => '1.5', 'group' => 'pricing', 'type' => 'decimal', 'description' => 'Price per minute'],
             ['key' => 'minimum_fare', 'value' => '15', 'group' => 'pricing', 'type' => 'decimal', 'description' => 'Minimum fare amount'],
+            ['key' => 'waiting_free_minutes', 'value' => '5', 'group' => 'pricing', 'type' => 'integer', 'description' => 'Free waiting time in minutes before fee starts'],
             ['key' => 'waiting_fee_per_minute', 'value' => '1', 'group' => 'pricing', 'type' => 'decimal', 'description' => 'Waiting fee per minute after free wait time'],
             ['key' => 'company_commission_rate', 'value' => '10', 'group' => 'commission', 'type' => 'decimal', 'description' => 'Company commission rate (10%)'],
             ['key' => 'long_pickup_threshold_km', 'value' => '2', 'group' => 'commission', 'type' => 'decimal', 'description' => 'Distance threshold for long pickup commission adjustment'],

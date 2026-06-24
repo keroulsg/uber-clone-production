@@ -259,6 +259,20 @@ Route::prefix('v1')->group(function () {
             Route::post('vehicles/{id}/approve', [\App\Http\Controllers\Api\Admin\AdminVehicleController::class, 'approve']);
             Route::post('vehicles/{id}/reject', [\App\Http\Controllers\Api\Admin\AdminVehicleController::class, 'reject']);
             Route::post('vehicles/{id}/suspend', [\App\Http\Controllers\Api\Admin\AdminVehicleController::class, 'suspend']);
+
+            // Promo Codes
+            Route::get('promo-codes', [\App\Http\Controllers\Api\Admin\AdminPromoCodeController::class, 'index']);
+            Route::post('promo-codes', [\App\Http\Controllers\Api\Admin\AdminPromoCodeController::class, 'store']);
+            Route::get('promo-codes/{id}', [\App\Http\Controllers\Api\Admin\AdminPromoCodeController::class, 'show']);
+            Route::put('promo-codes/{id}', [\App\Http\Controllers\Api\Admin\AdminPromoCodeController::class, 'update']);
+            Route::delete('promo-codes/{id}', [\App\Http\Controllers\Api\Admin\AdminPromoCodeController::class, 'destroy']);
+
+            // Service Areas
+            Route::get('service-areas', [\App\Http\Controllers\Api\Admin\AdminServiceAreaController::class, 'index']);
+            Route::post('service-areas', [\App\Http\Controllers\Api\Admin\AdminServiceAreaController::class, 'store']);
+            Route::get('service-areas/{id}', [\App\Http\Controllers\Api\Admin\AdminServiceAreaController::class, 'show']);
+            Route::put('service-areas/{id}', [\App\Http\Controllers\Api\Admin\AdminServiceAreaController::class, 'update']);
+            Route::delete('service-areas/{id}', [\App\Http\Controllers\Api\Admin\AdminServiceAreaController::class, 'destroy']);
         });
     });
 });

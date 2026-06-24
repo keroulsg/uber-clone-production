@@ -8,7 +8,7 @@ This log tracks the progress of the implementation plan, completed phases, and p
 * **Currency**: EGP
 * **Timezone**: Africa/Cairo
 * **Active Branch**: `p0-fix-arrived-and-saved-place-booking`
-* **Current HEAD**: `a0b8d0ee` (Phase 9 committed)
+* **Current HEAD**: `fbc22386` (Phase 9 committed, Phase 10A in progress)
 * **Active DB Connection**: SQLite (dev) / MySQL (prod)
 * **Active Environment**: Local Development
 
@@ -36,8 +36,8 @@ This log tracks the progress of the implementation plan, completed phases, and p
 | **Phase 6** | Payments/Wallet/Debt/Settlements | `[x] COMPLETED` | 100 | Fresh Phase 6 database backup verified, wallet top-up, processPayment, settlement approval/rejection fully wrapped in DB transactions with row locks, 85 tests passed. |
 | **Phase 7** | Cancellations / Penalties Lock | `[x] COMPLETED` | 100 | Fresh Phase 7 database backup verified, rider cancellation and driver rejection fully wrapped in DB transactions with lockForUpdate, 102 tests passed. |
 | **Phase 8** | Security Hardening Lock | `[x] IMPLEMENTED — PENDING OWNER REVIEW` | - | Fresh Phase 8 database backup verified, IDOR fixes on vehicles/payments/tickets, secure HTTP headers, custom rate limiting, DB exception masking, and audit logging created. 116 tests passed. |
-| **Phase 9** | Communications Lock | `[x] IMPLEMENTED — PENDING OWNER REVIEW` | - | Fresh Phase 9 database backup verified. Broadcast auth, ride lifecycle broadcasts, rider↔driver chat, notification/ticket security, and 40 new tests. 156 tests passed. |
-| **Phase 10** | Advanced Product Features | `[ ] PENDING` | - | - |
+| **Phase 9** | Communications Lock | `[x] IMPLEMENTED — PENDING OWNER REVIEW` | - | Fresh Phase 9 database backup verified. Broadcast auth, ride lifecycle broadcasts, rider↔driver chat, notification/ticket security, and 40 new tests. 172/172 tests pass. |
+| **Phase 10A** | Safe Additives | `[x] IMPLEMENTED — PENDING OWNER REVIEW` | - | VehicleType fillable/casts/resources, Driver gender/femaleOnly resources, PromoCode admin CRUD, Service Area foundation (model/migration/controller/seeder), waiting_free_minutes setting. 16 new tests pass. Full suite: 172/172. No fare/payment/matching/dispatch changes. |
 | **Phase 11** | UI/UX + Language Lock | `[ ] PENDING` | - | - |
 | **Phase 12** | Reports/Analytics/Monitor Lock | `[ ] PENDING` | - | - |
 | **Phase 13** | Mobile API Readiness | `[ ] PENDING` | - | - |
@@ -72,6 +72,6 @@ Total required: **17 files**.
 ---
 
 ## Verification Run History
-* **Last Test Result**: SQLite Feature test suite passed. 156 tests, 497 assertions.
-* **Last React Build**: Successful. 2550 modules transformed.
+* **Last Test Result**: SQLite Feature test suite passed. 172 tests, 535 assertions, all passing.
+* **Last React Build**: Successful. Built in 6.40s (chunk size warnings only).
 * **Last Staging Run**: PENDING.

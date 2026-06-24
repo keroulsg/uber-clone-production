@@ -12,6 +12,8 @@ class DriverBriefResource extends JsonResource
         return [
             'id' => (string) $this->id,
             'user' => new UserBriefResource($this->whenLoaded('user')),
+            'gender' => $this->gender,
+            'femaleOnly' => (bool) $this->female_only,
             'averageRating' => (float) $this->average_rating,
             'totalRides' => $this->total_rides,
             'profilePhotoUrl' => $this->profile_photo_url,
