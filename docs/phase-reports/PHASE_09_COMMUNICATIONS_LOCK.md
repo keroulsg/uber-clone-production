@@ -4,8 +4,8 @@
 Phase 9 implements the Communications Lock: broadcast auth, ride lifecycle broadcasts, rider↔driver chat, notification/ticket security, and chat tests.
 
 ## Git Proof
-- **Current HEAD**: `79285737` — `fix(phase-8): harden security idor headers rate limits and audit logs`
-- **Phase 9**: Uncommitted. Working tree is clean for Phase 8 accepted commit + Phase 9 staged working changes.
+- **Current HEAD**: `a2729fb8` — `docs(phase-9): finalize owner acceptance metadata`
+- **Phase 9**: Committed. Two commits: `a0b8d0ee` (implementation) + `a2729fb8` (metadata).
 - **Branch**: `p0-fix-arrived-and-saved-place-booking`
 - **Files changed**: 15 modified, 13 new, 3 deleted (generated artifacts removed from tracking)
 - **Total diff**: 201 insertions(+), 12 deletions(-)
@@ -178,11 +178,12 @@ All 11 pages tested via HTTP GET — all return **200 OK**:
 | Total tests | 156 |
 | Passed | 156 |
 | Assertions | 497 |
-| Duration | 7,725ms |
+| Duration | 8,207ms |
 | Build status | Successful |
 | Modules transformed | 2,550 |
 | Warnings | Chunk size > 500kB (pre-existing, not Phase 9 related) |
-| Generated artifacts status | `dist/`, `*.tsbuildinfo` in `.gitignore` — not tracked |
+| Generated artifacts status | `dist/`, `*.tsbuildinfo` removed from tracking and in `.gitignore` |
+| Working tree | Clean (only view cache files untracked — normal Laravel) |
 
 ## Files Changed
 ### Modified (15)
