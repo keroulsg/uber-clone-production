@@ -22,6 +22,8 @@ use App\Models\Wallet;
 use App\Models\LedgerEntry;
 use App\Models\RideDriverOffer;
 use App\Models\Notification;
+use App\Events\RideRequested;
+use App\Events\RideCancelled;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -174,6 +176,9 @@ class RideController extends Controller
                 'driver_id' => $nearest->id,
             ]);
         }
+
+        // Broadcast ride requested event
+        event(new RideRequested($ride));
 
         // Create ride requested notification for rider
         Notification::create([
@@ -424,6 +429,8 @@ class RideController extends Controller
             });
 
             $responseData = new RideResource($ride->fresh()->load('driver.user', 'vehicleType'));
+
+            event(new RideCancelled($ride));
 
             return response()->json([
                 'success' => true,

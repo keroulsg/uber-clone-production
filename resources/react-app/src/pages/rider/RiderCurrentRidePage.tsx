@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   Navigation, MapPin, Phone, Star, Car,
   XCircle, AlertTriangle, ChevronLeft,
-  Clock, CheckCircle, User, Route, Bike,
+  Clock, CheckCircle, User, Route, Bike, MessageSquare,
 } from 'lucide-react'
 import { useCurrentRide, useCancelRide, useAcceptAnyDriver, useRecentCompletedPendingRating, useDismissCompleted } from '@/hooks/useRides'
 import { useRideStore } from '@/stores/rideStore'
@@ -40,6 +40,7 @@ import { useCancellationReasons } from '@/hooks/useCancellationReasons'
 import { useCreateSavedPlace } from '@/hooks/useSavedPlaces'
 import { toast } from 'sonner'
 import { MapService } from '@/maps/MapService'
+import { ChatPanel } from '@/components/ride/ChatPanel'
 import type { CancellationReason, Ride } from '@/types'
 
 const statusSteps = [
@@ -87,6 +88,7 @@ export default function RiderCurrentRidePage() {
   const [routeError, setRouteError] = useState(false)
   const [trackingTimeout, setTrackingTimeout] = useState(false)
   const [rateDialogOpen, setRateDialogOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const [ratingValue, setRatingValue] = useState(0)
   const [ratingComment, setRatingComment] = useState('')
   const [ratingError, setRatingError] = useState('')
@@ -460,9 +462,16 @@ export default function RiderCurrentRidePage() {
               {currentRide.vehicleType.name}
             </Badge>
           )}
+          <Button variant="ghost" size="icon" onClick={() => setChatOpen(!chatOpen)}>
+            <MessageSquare className="h-5 w-5" />
+          </Button>
           <StatusBadge status={currentRide.status} type="ride" />
         </div>
       </div>
+
+      {chatOpen && (
+        <ChatPanel rideId={currentRide?.id ?? null} isOpen={chatOpen} onToggle={() => setChatOpen(false)} />
+      )}
 
       <Card>
         <CardContent className="p-4">

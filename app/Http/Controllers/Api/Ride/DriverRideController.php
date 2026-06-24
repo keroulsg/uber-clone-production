@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Ride;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\RideResource;
 use App\Services\RideService;
+use App\Events\RideAccepted;
 use App\Services\PaymentService;
 use App\Services\FareCalculationService;
 use App\Repositories\RideRepository;
@@ -121,6 +122,8 @@ class DriverRideController extends Controller
                 'notifiable_id' => $ride->rider_id,
                 'data' => ['ride_id' => $ride->id, 'driver_id' => $driver->id, 'message' => 'A driver has accepted your ride.'],
             ]);
+
+            event(new RideAccepted($ride));
 
             return response()->json([
                 'success' => true,

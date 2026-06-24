@@ -2,38 +2,41 @@
 
 namespace App\Events;
 
-use App\Models\Ride;
+use App\Models\ChatMessage;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class RideAccepted implements ShouldBroadcast
+class MessageSent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(
-        public Ride $ride,
+        public ChatMessage $message,
     ) {}
 
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('ride.' . $this->ride->id),
+            new PrivateChannel('chat.' . $this->message->ride_id),
         ];
     }
 
     public function broadcastAs(): string
     {
-        return 'ride.accepted';
+        return 'message.sent';
     }
 
     public function broadcastWith(): array
     {
         return [
-            'ride_id' => $this->ride->id,
-            'status' => $this->ride->status->value,
+            'id' => $this->message->id,
+            'ride_id' => $this->message->ride_id,
+            'user_id' => $this->message->user_id,
+            'message' => $this->message->message,
+            'created_at' => $this->message->created_at->toISOString(),
         ];
     }
 }

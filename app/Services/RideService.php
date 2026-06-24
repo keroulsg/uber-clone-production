@@ -7,6 +7,9 @@ use App\Models\RideDriverOffer;
 use App\Models\RideStatusHistory;
 use App\Models\Notification;
 use App\Enums\RideStatus;
+use App\Events\DriverArrived;
+use App\Events\RideStarted;
+use App\Events\RideCompleted;
 use App\Repositories\DriverRepository;
 use App\Repositories\RideRepository;
 use Illuminate\Support\Facades\Log;
@@ -113,6 +116,8 @@ class RideService
             'data' => ['ride_id' => $ride->id, 'message' => 'Your driver has arrived.'],
         ]);
 
+        event(new DriverArrived($ride));
+
         return $ride->fresh();
     }
 
@@ -139,6 +144,8 @@ class RideService
             'notifiable_id' => $ride->rider_id,
             'data' => ['ride_id' => $ride->id, 'message' => 'Your ride has started.'],
         ]);
+
+        event(new RideStarted($ride));
 
         return $ride->fresh();
     }
@@ -196,6 +203,8 @@ class RideService
                     'data' => ['ride_id' => $lockedRide->id, 'message' => 'Ride completed.'],
                 ]);
             }
+
+            event(new RideCompleted($lockedRide));
 
             return $lockedRide->fresh();
         });

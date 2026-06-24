@@ -175,6 +175,12 @@ Route::prefix('v1')->group(function () {
             Route::post('{id}/close', [TicketController::class, 'close']);
         });
 
+        // Chat (ride-scoped)
+        Route::prefix('rides/{rideId}/chat')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\Chat\ChatController::class, 'index']);
+            Route::post('/', [\App\Http\Controllers\Api\Chat\ChatController::class, 'store'])->middleware('throttle:30,1,chat-message');
+        });
+
         // Reports (admin only)
         Route::prefix('reports')->middleware('admin')->group(function () {
             Route::get('daily', [ReportController::class, 'daily']);

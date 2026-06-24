@@ -3,6 +3,8 @@
 use App\Models\Ride;
 use Illuminate\Support\Facades\Broadcast;
 
+Broadcast::routes(['middleware' => ['auth:sanctum']]);
+
 Broadcast::channel('ride.{rideId}', function ($user, int $rideId) {
     $ride = Ride::with('driver')->find($rideId);
     if (!$ride) return false;
@@ -36,4 +38,14 @@ Broadcast::channel('driver.location.{driverId}', function ($user, int $driverId)
 
 Broadcast::channel('rider.{riderId}', function ($user, int $riderId) {
     return $user->id === $riderId;
+});
+
+Broadcast::channel('chat.{rideId}', function ($user, int $rideId) {
+    $ride = \App\Models\Ride::with('driver')->find($rideId);
+    if (!$ride) return false;
+
+    $isRider = $ride->rider_id === $user->id;
+    $isDriver = $ride->driver_id !== null && $ride->driver?->user_id === $user->id;
+
+    return $isRider || $isDriver;
 });

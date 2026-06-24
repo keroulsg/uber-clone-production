@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   Navigation, MapPin, Phone, Star, User, Car,
   ChevronLeft, CheckCircle, Play, ArrowRight,
-  DollarSign, Clock, Route, Wallet,
+  DollarSign, Clock, Route, Wallet, MessageSquare,
 } from 'lucide-react'
 import { useDriverCurrentRide, useArrivedRide, useStartRide, useCompleteRide, useRideSummary } from '@/hooks/useDriverRides'
 import { useUpdateLocation } from '@/hooks/useDrivers'
@@ -27,6 +27,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { useRateRider } from '@/hooks/useRatings'
 import { useRecentCompletedPendingRating, useDismissCompleted } from '@/hooks/useRides'
+import { ChatPanel } from '@/components/ride/ChatPanel'
 
 const steps = [
   { key: 'navigate_to_pickup', label: 'Navigate to Pickup', icon: Navigation },
@@ -61,6 +62,7 @@ export default function DriverCurrentRidePage() {
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isCompletingRef = useRef(false)
   const [rateDialogOpen, setRateDialogOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const [ratingValue, setRatingValue] = useState(0)
   const [ratingComment, setRatingComment] = useState('')
   const [ratingError, setRatingError] = useState('')
@@ -351,10 +353,17 @@ export default function DriverCurrentRidePage() {
             Booking #{currentRide.bookingId}
           </p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => setChatOpen(!chatOpen)}>
+            <MessageSquare className="h-5 w-5" />
+          </Button>
           <StatusBadge status={currentRide.status} type="ride" />
         </div>
       </div>
+
+      {chatOpen && (
+        <ChatPanel rideId={currentRide?.id ?? null} isOpen={chatOpen} onToggle={() => setChatOpen(false)} />
+      )}
 
       <div className="flex items-center justify-between">
         {steps.map((step, index) => {
