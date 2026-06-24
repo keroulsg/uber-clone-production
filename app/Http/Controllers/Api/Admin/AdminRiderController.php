@@ -75,7 +75,7 @@ class AdminRiderController extends Controller
         ]);
     }
 
-    public function suspend(int $id): JsonResponse
+    public function suspend(int $id, Request $request): JsonResponse
     {
         $rider = Rider::find($id);
         if (!$rider) {
@@ -84,13 +84,23 @@ class AdminRiderController extends Controller
 
         $rider->update(['is_active' => false]);
 
+        \App\Services\AuditLogService::log(
+            'user_suspended',
+            $request->user()->id,
+            'admin',
+            Rider::class,
+            $rider->id,
+            null,
+            ['profile_type' => 'rider']
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Rider suspended',
         ]);
     }
 
-    public function reactivate(int $id): JsonResponse
+    public function reactivate(int $id, Request $request): JsonResponse
     {
         $rider = Rider::find($id);
         if (!$rider) {
@@ -98,6 +108,16 @@ class AdminRiderController extends Controller
         }
 
         $rider->update(['is_active' => true]);
+
+        \App\Services\AuditLogService::log(
+            'user_reactivated',
+            $request->user()->id,
+            'admin',
+            Rider::class,
+            $rider->id,
+            null,
+            ['profile_type' => 'rider']
+        );
 
         return response()->json([
             'success' => true,
@@ -118,6 +138,16 @@ class AdminRiderController extends Controller
 
         $rider->user()->update(['is_active' => false]);
 
+        \App\Services\AuditLogService::log(
+            'user_blocked',
+            $request->user()->id,
+            'admin',
+            \App\Models\User::class,
+            $rider->user_id,
+            null,
+            ['reason' => $request->input('reason'), 'profile_type' => 'rider']
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Rider blocked',
@@ -136,6 +166,16 @@ class AdminRiderController extends Controller
         ]);
 
         $rider->user()->update(['is_active' => true]);
+
+        \App\Services\AuditLogService::log(
+            'user_unblocked',
+            $request->user()->id,
+            'admin',
+            \App\Models\User::class,
+            $rider->user_id,
+            null,
+            ['reason' => $request->input('reason'), 'profile_type' => 'rider']
+        );
 
         return response()->json([
             'success' => true,

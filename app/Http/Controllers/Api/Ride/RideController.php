@@ -382,6 +382,16 @@ class RideController extends Controller
                                 'description' => 'Cancellation penalty — ride #' . $lockedRide->booking_id,
                             ]);
 
+                            \App\Services\AuditLogService::log(
+                                'wallet_debit',
+                                $request->user()->id,
+                                null,
+                                \App\Models\Wallet::class,
+                                $wallet->id,
+                                $penaltyAmount,
+                                ['ride_id' => $lockedRide->id, 'description' => 'Cancellation penalty — ride #' . $lockedRide->booking_id]
+                            );
+
                             $penaltyApplied = true;
 
                             Notification::create([

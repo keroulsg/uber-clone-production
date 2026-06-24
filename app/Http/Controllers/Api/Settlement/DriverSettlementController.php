@@ -112,6 +112,16 @@ class DriverSettlementController extends Controller
                 'status' => 'pending',
             ]);
 
+            \App\Services\AuditLogService::log(
+                'settlement_request_created',
+                $request->user()->id,
+                'driver',
+                DriverSettlement::class,
+                $settlement->id,
+                (float) $settlement->amount,
+                ['method' => $settlement->method, 'reference' => $settlement->reference]
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Settlement request submitted. Awaiting admin approval.',

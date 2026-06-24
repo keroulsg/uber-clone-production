@@ -74,11 +74,23 @@ class PaymentController extends Controller
         ]);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(int $id, Request $request): JsonResponse
     {
         $payment = $this->paymentRepo->findById($id);
         if (!$payment) {
             return response()->json(['success' => false, 'message' => 'Payment not found'], 404);
+        }
+
+        $ride = $payment->ride;
+        if (!$ride) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $isRider = $ride->rider_id === $request->user()->id;
+        $isDriver = $ride->driver && $ride->driver->user_id === $request->user()->id;
+
+        if (!$isRider && !$isDriver) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         return response()->json([
@@ -137,6 +149,15 @@ class PaymentController extends Controller
                 'notifiable_id' => $request->user()->id,
                 'data' => ['amount' => $amount, 'message' => "Your wallet has been topped up with {$amount}."],
             ]);
+
+            \App\Services\AuditLogService::log(
+                'wallet_topup',
+                $request->user()->id,
+                null,
+                \App\Models\Wallet::class,
+                $wallet->id,
+                $amount
+            );
 
             return response()->json([
                 'success' => true,

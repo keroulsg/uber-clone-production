@@ -186,7 +186,7 @@ class AdminDriverController extends Controller
         ]);
     }
 
-    public function approve(int $id): JsonResponse
+    public function approve(int $id, Request $request): JsonResponse
     {
         $driver = Driver::find($id);
         if (!$driver) {
@@ -200,13 +200,23 @@ class AdminDriverController extends Controller
             'is_active' => true,
         ]);
 
+        \App\Services\AuditLogService::log(
+            'document_approved',
+            $request->user()->id,
+            'admin',
+            Driver::class,
+            $driver->id,
+            null,
+            ['action' => 'driver_approved']
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Driver approved',
         ]);
     }
 
-    public function reject(int $id): JsonResponse
+    public function reject(int $id, Request $request): JsonResponse
     {
         $driver = Driver::find($id);
         if (!$driver) {
@@ -218,13 +228,23 @@ class AdminDriverController extends Controller
             'status' => 'rejected',
         ]);
 
+        \App\Services\AuditLogService::log(
+            'document_rejected',
+            $request->user()->id,
+            'admin',
+            Driver::class,
+            $driver->id,
+            null,
+            ['action' => 'driver_rejected']
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Driver rejected',
         ]);
     }
 
-    public function suspend(int $id): JsonResponse
+    public function suspend(int $id, Request $request): JsonResponse
     {
         $driver = Driver::find($id);
         if (!$driver) {
@@ -236,13 +256,23 @@ class AdminDriverController extends Controller
             'status' => 'suspended',
         ]);
 
+        \App\Services\AuditLogService::log(
+            'user_suspended',
+            $request->user()->id,
+            'admin',
+            Driver::class,
+            $driver->id,
+            null,
+            ['profile_type' => 'driver']
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Driver suspended',
         ]);
     }
 
-    public function reactivate(int $id): JsonResponse
+    public function reactivate(int $id, Request $request): JsonResponse
     {
         $driver = Driver::find($id);
         if (!$driver) {
@@ -253,6 +283,16 @@ class AdminDriverController extends Controller
             'is_active' => true,
             'status' => 'approved',
         ]);
+
+        \App\Services\AuditLogService::log(
+            'user_reactivated',
+            $request->user()->id,
+            'admin',
+            Driver::class,
+            $driver->id,
+            null,
+            ['profile_type' => 'driver']
+        );
 
         return response()->json([
             'success' => true,
@@ -273,6 +313,16 @@ class AdminDriverController extends Controller
 
         $driver->user()->update(['is_active' => false]);
 
+        \App\Services\AuditLogService::log(
+            'user_blocked',
+            $request->user()->id,
+            'admin',
+            \App\Models\User::class,
+            $driver->user_id,
+            null,
+            ['reason' => $request->input('reason'), 'profile_type' => 'driver']
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Driver blocked',
@@ -291,6 +341,16 @@ class AdminDriverController extends Controller
         ]);
 
         $driver->user()->update(['is_active' => true]);
+
+        \App\Services\AuditLogService::log(
+            'user_unblocked',
+            $request->user()->id,
+            'admin',
+            \App\Models\User::class,
+            $driver->user_id,
+            null,
+            ['reason' => $request->input('reason'), 'profile_type' => 'driver']
+        );
 
         return response()->json([
             'success' => true,

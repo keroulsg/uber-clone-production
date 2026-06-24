@@ -165,9 +165,21 @@ class AdminController extends Controller
 
     public function auditLogs(): JsonResponse
     {
+        $paginator = \App\Models\AuditLog::with('actor')->latest()->paginate(20);
+
         return response()->json([
             'success' => true,
-            'data' => [],
+            'data' => [
+                'data' => $paginator->items(),
+                'meta' => [
+                    'currentPage' => $paginator->currentPage(),
+                    'lastPage' => $paginator->lastPage(),
+                    'perPage' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'from' => $paginator->firstItem() ?? 0,
+                    'to' => $paginator->lastItem() ?? 0,
+                ],
+            ],
         ]);
     }
 

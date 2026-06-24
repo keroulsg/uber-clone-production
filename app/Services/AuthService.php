@@ -47,6 +47,8 @@ class AuthService
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
+        \App\Services\AuditLogService::log('register', $user->id, $dto->role, \App\Models\User::class, $user->id);
+
         return ['user' => $user, 'token' => $token];
     }
 
@@ -55,19 +57,25 @@ class AuthService
         $user = $this->userRepo->findByEmail($dto->email);
 
         if (!$user || !Hash::check($dto->password, $user->password)) {
+            $actorId = $user ? $user->id : null;
+            \App\Services\AuditLogService::log('login_failed', $actorId, null, null, null, null, ['email' => $dto->email]);
             abort(401, 'The provided credentials are incorrect.');
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
+
+        \App\Services\AuditLogService::log('login', $user->id, null, \App\Models\User::class, $user->id);
 
         return ['user' => $user, 'token' => $token];
     }
 
     public function logout(User $user): void
     {
+        \App\Services\AuditLogService::log('logout', $user->id, null, \App\Models\User::class, $user->id);
         $token = $user->currentAccessToken();
         if ($token && method_exists($token, 'delete')) {
             $token->delete();
         }
     }
+
 }

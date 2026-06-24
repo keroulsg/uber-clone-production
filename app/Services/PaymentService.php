@@ -64,6 +64,16 @@ class PaymentService
                 'paid_at' => now(),
             ]);
 
+            \App\Services\AuditLogService::log(
+                'payment_created',
+                null,
+                null,
+                Payment::class,
+                $payment->id,
+                $totalFare,
+                ['ride_id' => $ride->id, 'payment_method' => $ride->payment_method]
+            );
+
             if ($ride->payment_method === 'wallet') {
                 $riderWallet = $this->walletRepo->findByUser($ride->rider_id, true);
                 $riderBalanceBefore = $riderWallet ? (float) $riderWallet->balance : 0;
@@ -140,12 +150,22 @@ class PaymentService
                         'description' => "Cash change credit for ride #{$ride->id}",
                     ]);
 
-                    DriverDebt::create([
+                    $debt1 = DriverDebt::create([
                         'driver_id' => $ride->driver_id,
                         'ride_id' => $ride->id,
                         'type' => 'cash_change_liability',
                         'amount' => $changeDue,
                     ]);
+
+                    \App\Services\AuditLogService::log(
+                        'driver_debt_created',
+                        $ride->driver?->user_id,
+                        'driver',
+                        DriverDebt::class,
+                        $debt1->id,
+                        $changeDue,
+                        ['type' => 'cash_change_liability', 'ride_id' => $ride->id]
+                    );
 
                     if ($ride->driver) {
                         Notification::create([
@@ -159,12 +179,22 @@ class PaymentService
             }
 
             if ($ride->payment_method === 'cash') {
-                DriverDebt::create([
+                $debt2 = DriverDebt::create([
                     'driver_id' => $ride->driver_id,
                     'ride_id' => $ride->id,
                     'type' => 'commission',
                     'amount' => $commission,
                 ]);
+
+                \App\Services\AuditLogService::log(
+                    'driver_debt_created',
+                    $ride->driver?->user_id,
+                    'driver',
+                    DriverDebt::class,
+                    $debt2->id,
+                    $commission,
+                    ['type' => 'commission', 'ride_id' => $ride->id]
+                );
 
                 if ($ride->driver) {
                     Notification::create([

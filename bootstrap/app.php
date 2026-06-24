@@ -14,6 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(\App\Http\Middleware\SecurityHeadersMiddleware::class);
+
         $middleware->alias([
             'role_or_profile' => \App\Http\Middleware\RoleOrProfile::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
@@ -29,4 +31,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        $exceptions->render(function (\Illuminate\Database\QueryException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                \Illuminate\Support\Facades\Log::error('Database Query Error masked: ' . $e->getMessage(), [
+                    'sql' => $e->getSql(),
+                    'bindings' => $e->getBindings(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A database error occurred. Please try again later.',
+                ], 500);
+            }
+        });
     })->create();

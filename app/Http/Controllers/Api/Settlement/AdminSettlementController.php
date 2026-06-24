@@ -89,6 +89,16 @@ class AdminSettlementController extends Controller
                 'reviewed_at' => now(),
             ]);
 
+            \App\Services\AuditLogService::log(
+                'settlement_approved',
+                $request->user()->id,
+                'admin',
+                DriverSettlement::class,
+                $settlement->id,
+                (float) $settlement->amount,
+                ['driver_id' => $settlement->driver_id]
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Settlement approved. Applicable debts marked as paid.',
@@ -118,6 +128,16 @@ class AdminSettlementController extends Controller
                 'reviewed_by' => $request->user()->id,
                 'reviewed_at' => now(),
             ]);
+
+            \App\Services\AuditLogService::log(
+                'settlement_rejected',
+                $request->user()->id,
+                'admin',
+                DriverSettlement::class,
+                $settlement->id,
+                (float) $settlement->amount,
+                ['driver_id' => $settlement->driver_id, 'reason' => $request->input('rejection_reason')]
+            );
 
             return response()->json([
                 'success' => true,

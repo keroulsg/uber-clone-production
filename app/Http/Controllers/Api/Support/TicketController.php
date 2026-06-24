@@ -52,11 +52,15 @@ class TicketController extends Controller
         ], 201);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(int $id, Request $request): JsonResponse
     {
         $ticket = $this->ticketRepo->findById($id);
         if (!$ticket) {
             return response()->json(['success' => false, 'message' => 'Ticket not found'], 404);
+        }
+
+        if ($ticket->user_id !== $request->user()->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         return response()->json([
@@ -67,10 +71,29 @@ class TicketController extends Controller
 
     public function addMessage(int $ticketId, TicketMessageRequest $request): JsonResponse
     {
+        $ticket = $this->ticketRepo->findById($ticketId);
+        if (!$ticket) {
+            return response()->json(['success' => false, 'message' => 'Ticket not found'], 404);
+        }
+
+        if ($ticket->user_id !== $request->user()->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
         $message = $this->supportService->addMessage(
             $ticketId,
             $request->user()->id,
             $request->input('message')
+        );
+
+        \App\Services\AuditLogService::log(
+            'ticket_message_added',
+            $request->user()->id,
+            null,
+            Ticket::class,
+            $ticketId,
+            null,
+            ['message_id' => $message->id]
         );
 
         return response()->json([
@@ -82,7 +105,24 @@ class TicketController extends Controller
 
     public function close(int $id, Request $request): JsonResponse
     {
+        $ticket = $this->ticketRepo->findById($id);
+        if (!$ticket) {
+            return response()->json(['success' => false, 'message' => 'Ticket not found'], 404);
+        }
+
+        if ($ticket->user_id !== $request->user()->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
         $this->supportService->closeTicket($id);
+
+        \App\Services\AuditLogService::log(
+            'ticket_closed',
+            $request->user()->id,
+            null,
+            Ticket::class,
+            $id
+        );
 
         return response()->json([
             'success' => true,

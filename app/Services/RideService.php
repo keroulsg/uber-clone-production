@@ -171,6 +171,16 @@ class RideService
 
             $this->paymentService->processPayment($lockedRide, $actualDistanceKm, $actualDurationMin, $cashReceived, $creditChange);
 
+            \App\Services\AuditLogService::log(
+                'ride_completed',
+                null,
+                null,
+                Ride::class,
+                $lockedRide->id,
+                (float) ($lockedRide->actual_fare ?? 0),
+                ['rider_id' => $lockedRide->rider_id, 'driver_id' => $lockedRide->driver_id]
+            );
+
             Notification::create([
                 'type' => 'ride_completed',
                 'notifiable_type' => \App\Models\User::class,
@@ -215,6 +225,16 @@ class RideService
         }
 
         $ride->update($updateData);
+
+        \App\Services\AuditLogService::log(
+            'ride_cancelled',
+            null,
+            null,
+            Ride::class,
+            $ride->id,
+            null,
+            ['rider_id' => $ride->rider_id, 'driver_id' => $ride->driver_id, 'cancelled_by' => $cancelledBy, 'reason' => $reason]
+        );
 
         RideStatusHistory::create([
             'ride_id' => $ride->id,

@@ -70,7 +70,7 @@ Route::prefix('v1')->group(function () {
         });
 
         // Fare estimate (available to all authenticated users)
-        Route::post('rides/estimate-fare', [RideController::class, 'estimateFare']);
+        Route::post('rides/estimate-fare', [RideController::class, 'estimateFare'])->middleware('throttle:30,1,estimate-fare');
 
         // Recent completed ride pending rating (rider or driver)
         Route::get('rides/recent-completed-pending-rating', [RideController::class, 'recentCompletedPendingRating']);
@@ -79,7 +79,7 @@ Route::prefix('v1')->group(function () {
         // Rides (rider only via role or rider profile)
         Route::prefix('rides')->middleware('role_or_profile:rider,App\Models\Rider')->group(function () {
             Route::get('/', [RideController::class, 'index']);
-            Route::post('/', [RideController::class, 'store']);
+            Route::post('/', [RideController::class, 'store'])->middleware('throttle:5,1,book-ride');
             Route::get('current', [RideController::class, 'current']);
             Route::get('track-driver/{driverId}', [RideController::class, 'trackDriver']);
             Route::get('{id}', [RideController::class, 'show']);
@@ -114,7 +114,7 @@ Route::prefix('v1')->group(function () {
             Route::get('profile', [DriverController::class, 'show']);
             Route::post('profile', [DriverController::class, 'update']);
             Route::post('toggle-online', [DriverController::class, 'toggleOnlineStatus']);
-            Route::post('location', [DriverController::class, 'updateLocation']);
+            Route::post('location', [DriverController::class, 'updateLocation'])->middleware('throttle:60,1,driver-location');
             Route::get('earnings', [DriverController::class, 'earnings']);
             Route::get('performance', [DriverController::class, 'performance']);
             Route::get('ride-history', [DriverController::class, 'rideHistory']);
@@ -143,7 +143,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('payments')->group(function () {
             Route::get('/', [PaymentController::class, 'index']);
             Route::get('wallet', [PaymentController::class, 'wallet']);
-            Route::post('wallet/fund', [PaymentController::class, 'addFunds']);
+            Route::post('wallet/fund', [PaymentController::class, 'addFunds'])->middleware('throttle:10,1,wallet-fund');
             Route::get('transactions', [PaymentController::class, 'transactions']);
             Route::get('{id}', [PaymentController::class, 'show']);
         });
@@ -171,7 +171,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/', [TicketController::class, 'index']);
             Route::post('/', [TicketController::class, 'store']);
             Route::get('{id}', [TicketController::class, 'show']);
-            Route::post('{ticketId}/messages', [TicketController::class, 'addMessage']);
+            Route::post('{ticketId}/messages', [TicketController::class, 'addMessage'])->middleware('throttle:15,1,ticket-message');
             Route::post('{id}/close', [TicketController::class, 'close']);
         });
 

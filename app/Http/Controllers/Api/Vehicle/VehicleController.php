@@ -61,11 +61,20 @@ class VehicleController extends Controller
         ], 201);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(int $id, Request $request): JsonResponse
     {
+        $driver = $this->driverRepo->findByUserId($request->user()->id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
         $vehicle = $this->vehicleRepo->findById($id);
         if (!$vehicle) {
             return response()->json(['success' => false, 'message' => 'Vehicle not found'], 404);
+        }
+
+        if ($vehicle->driver_id !== $driver->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         return response()->json([
@@ -76,9 +85,18 @@ class VehicleController extends Controller
 
     public function update(int $id, Request $request): JsonResponse
     {
+        $driver = $this->driverRepo->findByUserId($request->user()->id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
         $vehicle = $this->vehicleRepo->findById($id);
         if (!$vehicle) {
             return response()->json(['success' => false, 'message' => 'Vehicle not found'], 404);
+        }
+
+        if ($vehicle->driver_id !== $driver->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         $vehicle->update($request->only([
@@ -95,6 +113,20 @@ class VehicleController extends Controller
 
     public function uploadDocument(int $id, Request $request): JsonResponse
     {
+        $driver = $this->driverRepo->findByUserId($request->user()->id);
+        if (!$driver) {
+            return response()->json(['success' => false, 'message' => 'Driver not found'], 404);
+        }
+
+        $vehicle = $this->vehicleRepo->findById($id);
+        if (!$vehicle) {
+            return response()->json(['success' => false, 'message' => 'Vehicle not found'], 404);
+        }
+
+        if ($vehicle->driver_id !== $driver->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Document uploaded',
